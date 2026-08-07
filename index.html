@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AS/NZS 1170.2:2021 Wind Actions Calculator (Basic)</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="page-header">
+  <h1>Wind Actions to AS/NZS&nbsp;1170.2:2021 <span class="tag">basic calculator</span></h1>
+  <p class="subtitle">Site wind speed, design wind speed and preliminary design wind pressure for enclosed rectangular buildings.</p>
+</header>
+
+<div class="disclaimer">
+  <strong>Scope &amp; disclaimer:</strong> This is a preliminary/educational tool, not a substitute for the full Standard or engineering judgement.
+  It covers Sections&nbsp;2&ndash;4 (site &amp; design wind speed) and a simplified Section&nbsp;5 (enclosed rectangular buildings, walls and roof pitch&nbsp;&lt;10&deg; only).
+  It does <strong>not</strong> cover: Section&nbsp;6 dynamic response (C<sub>dyn</sub> is left as a manual input, default 1.0), Appendices A&ndash;E,
+  area reduction/combination/local pressure/porous cladding factors (K<sub>a</sub>, K<sub>c</sub>, K<sub>l</sub>, K<sub>p</sub> are taken as 1.0),
+  NZ lee-zone multipliers, C/D coastal-distance interpolation, or pitched roofs &ge;10&deg;. Always verify against AS/NZS&nbsp;1170.2:2021 and have
+  results checked by a suitably qualified engineer.
+  <a href="README.md">Full scope notes &rarr;</a>
+</div>
+
+<main>
+  <!-- ============================= SECTION A ============================= -->
+  <section class="card">
+    <h2>1. Site wind speed &amp; design wind speed <span class="ref">(Sections 2&ndash;4)</span></h2>
+
+    <div class="grid">
+      <div class="field">
+        <label for="region">Region</label>
+        <select id="region"></select>
+      </div>
+
+      <div class="field">
+        <label for="ari">Average recurrence interval, R (years)</label>
+        <select id="ari"></select>
+      </div>
+      <div class="field" id="ari-custom-wrap" hidden>
+        <label for="ariCustom">Custom R (years, &ge;5)</label>
+        <input type="number" id="ariCustom" min="5" step="1" value="500" />
+      </div>
+
+      <div class="field">
+        <label for="terrainCategory">Terrain category <span class="ref">(Cl 4.2.1)</span></label>
+        <select id="terrainCategory">
+          <option value="1">1 &ndash; very exposed / open water</option>
+          <option value="2" selected>2 &ndash; open terrain, grassland</option>
+          <option value="2.5">2.5 &ndash; outer urban / scattered obstructions</option>
+          <option value="3">3 &ndash; suburban / light industrial</option>
+          <option value="4">4 &ndash; city centres, dense large obstructions</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="refHeight">Reference / average roof height, h = z (m)</label>
+        <input type="number" id="refHeight" min="0" step="0.1" value="10" />
+      </div>
+
+      <div class="field">
+        <label for="azimuth">Building axis (θ=0°) bearing from true North (°)</label>
+        <input type="number" id="azimuth" min="0" max="359" step="1" value="0" />
+      </div>
+    </div>
+
+    <details class="subpanel">
+      <summary>Shielding multiplier, M<sub>s</sub> <span class="ref">(Clause 4.3, Table 4.2)</span></summary>
+      <p class="hint">M<sub>s</sub> is forced to 1.0 automatically for h&nbsp;&gt;&nbsp;25&nbsp;m. Calculating the shielding parameter (s) from
+        upwind building geometry (Cl 4.3.3) is not automated here &mdash; enter s directly if known, otherwise leave blank for the conservative
+        default (no shielding credit, M<sub>s</sub>&nbsp;=&nbsp;1.0).</p>
+      <div class="grid">
+        <div class="field">
+          <label for="shieldingS">Shielding parameter, s (1.5&ndash;12, Table 4.2)</label>
+          <input type="number" id="shieldingS" min="0" step="0.1" placeholder="blank = no shielding (Ms=1.0)" />
+        </div>
+      </div>
+    </details>
+
+    <details class="subpanel">
+      <summary>Topographic multiplier, M<sub>t</sub> <span class="ref">(Clause 4.4)</span></summary>
+      <div class="grid">
+        <div class="field">
+          <label for="mtMode">Site topography</label>
+          <select id="mtMode">
+            <option value="flat" selected>Flat / no local topographic feature (M<sub>t</sub> = 1.0)</option>
+            <option value="hill">Hill, ridge or escarpment &ndash; calculate M<sub>h</sub></option>
+            <option value="manual">Enter M<sub>t</sub> manually</option>
+          </select>
+        </div>
+        <div class="field" id="mtManualWrap" hidden>
+          <label for="mtManual">M<sub>t</sub> (manual)</label>
+          <input type="number" id="mtManual" min="1" step="0.01" value="1.0" />
+        </div>
+      </div>
+      <div id="mhInputs" class="grid" hidden>
+        <div class="field">
+          <label for="mhH">Feature height, H (m)</label>
+          <input type="number" id="mhH" min="0" step="0.1" value="0" />
+        </div>
+        <div class="field">
+          <label for="mhLu">L<sub>u</sub> &ndash; upwind distance to half-height point (m)</label>
+          <input type="number" id="mhLu" min="1" step="0.1" value="100" />
+        </div>
+        <div class="field">
+          <label for="mhX">x &ndash; distance from structure to crest (m, negative = upwind)</label>
+          <input type="number" id="mhX" step="0.1" value="0" />
+        </div>
+        <div class="field">
+          <label for="mhType">Feature type (affects downwind L<sub>2</sub>)</label>
+          <select id="mhType">
+            <option value="hill">Hill / ridge</option>
+            <option value="escarpment">Escarpment</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="mhA0"><input type="checkbox" id="mhA0" /> Region A0 (uses M<sub>t</sub> = 0.5 + 0.5M<sub>h</sub>)</label>
+        </div>
+        <div class="field" id="mhElevWrap" hidden>
+          <label for="mhElev">Site elevation above sea level, E (m) &ndash; A4/NZ1-4 sites &gt;500 m AMSL only</label>
+          <input type="number" id="mhElev" min="0" step="1" value="0" />
+        </div>
+      </div>
+    </details>
+
+    <button id="calcSpeeds" class="primary">Calculate wind speeds</button>
+
+    <div id="speedResults" class="results" hidden></div>
+  </section>
+
+  <!-- ============================= SECTION B ============================= -->
+  <section class="card">
+    <h2>2. Design wind pressure &ndash; enclosed rectangular building <span class="ref">(Section 5, simplified)</span></h2>
+    <p class="hint">Walls are fully covered (Tables 5.2(A)&ndash;(C)). Roofs are only covered for pitch &lt;10&deg; (Table 5.3(A)) &mdash; for
+      pitched roofs &ge;10&deg;, enter a Cp,e value you've sourced from Tables 5.3(B)/(C) directly. K<sub>a</sub>, K<sub>c</sub>, K<sub>l</sub>, K<sub>p</sub>
+      are all taken as 1.0 (no area reduction / local cladding factors) &mdash; apply these separately for cladding and fixing design.</p>
+
+    <div class="grid">
+      <div class="field">
+        <label for="pVdes">Governing design wind speed, V<sub>des,θ</sub> (m/s)</label>
+        <input type="number" id="pVdes" min="0" step="0.1" value="40" />
+      </div>
+      <div class="field">
+        <label for="pCdyn">Dynamic response factor, C<sub>dyn</sub> <span class="ref">(Section 6)</span></label>
+        <input type="number" id="pCdyn" min="1" step="0.01" value="1.0" />
+      </div>
+      <div class="field">
+        <label for="bldB">Building width, b (m) &ndash; across wind</label>
+        <input type="number" id="bldB" min="0.1" step="0.1" value="20" />
+      </div>
+      <div class="field">
+        <label for="bldD">Building depth, d (m) &ndash; along wind</label>
+        <input type="number" id="bldD" min="0.1" step="0.1" value="15" />
+      </div>
+      <div class="field">
+        <label for="bldH">Average roof height, h (m)</label>
+        <input type="number" id="bldH" min="0.1" step="0.1" value="10" />
+      </div>
+      <div class="field">
+        <label for="roofPitch">Roof pitch, α (degrees)</label>
+        <input type="number" id="roofPitch" min="0" max="45" step="1" value="5" />
+      </div>
+      <div class="field">
+        <label for="windTheta">Wind direction relative to ridge</label>
+        <select id="windTheta">
+          <option value="0">θ = 0° &ndash; normal to ridge (onto width b)</option>
+          <option value="90">θ = 90° &ndash; parallel to ridge (onto depth d)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cpiCase">Internal pressure case <span class="ref">(Table 5.1(A))</span></label>
+        <select id="cpiCase"></select>
+      </div>
+    </div>
+
+    <button id="calcPressure" class="primary">Calculate wind pressures</button>
+
+    <div id="pressureResults" class="results" hidden></div>
+  </section>
+</main>
+
+<footer>
+  <p>Data source: AS/NZS 1170.2:2021 <em>Structural design actions &ndash; Part 2: Wind actions</em>, Sections 2&ndash;5.
+    Not affiliated with or endorsed by Standards Australia / Standards New Zealand.</p>
+</footer>
+
+<script src="data.js"></script>
+<script src="calc.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
