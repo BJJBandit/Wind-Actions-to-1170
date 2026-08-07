@@ -77,6 +77,17 @@ function populateLocations() {
   });
 }
 
+function populateAzimuth() {
+  const sel = $("azimuth");
+  for (let a = 0; a < 360; a += 5) {
+    const opt = document.createElement("option");
+    opt.value = a;
+    opt.textContent = `${a}°`;
+    sel.appendChild(opt);
+  }
+  sel.value = "0";
+}
+
 function populateAri() {
   const sel = $("ari");
   VR_STANDARD_R.forEach((R) => {
@@ -351,6 +362,7 @@ function renderPressureResults() {
 document.addEventListener("DOMContentLoaded", () => {
   populateRegions();
   populateLocations();
+  populateAzimuth();
   populateAri();
   populateCpiCases();
   wireTopographyControls();
