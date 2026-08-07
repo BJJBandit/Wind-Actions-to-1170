@@ -23,6 +23,9 @@ suitably qualified engineer.
   years
 - Wind direction multiplier `Md` (Table 3.2(A)/(B))
 - Climate change multiplier `Mc` (Table 3.3)
+- An optional **site location dropdown** (capital cities + major regional centres, AU + NZ) that
+  pre-fills the Region field. See "Site location dropdown" below — it's an assistive shortcut, not an
+  authoritative region lookup, and remains fully editable.
 
 **Section 4 — Site exposure multipliers**
 - Terrain/height multiplier `Mz,cat` (Table 4.1), including the Region A0 special case (constant 1.24)
@@ -37,6 +40,30 @@ suitably qualified engineer.
 - Roof external pressure coefficients for **pitch < 10° only** (Table 5.3(A)), by h/d and zone
 - Internal pressure coefficient `Cp,i` cases from Table 5.1(A) (small-opening/impermeable-roof cases)
 - Net pressure `p = 0.5 × ρ_air × Vdes,θ² × Cshp × Cdyn` (Equation 2.4(1))
+
+## Site location dropdown
+
+AS/NZS 1170.2:2021 defines wind regions by the maps in Figures 3.1(A) (Australia) and 3.1(B) (New
+Zealand) — there's no official list mapping place names to regions. The dropdown in `data.js`
+(`LOCATIONS`) was compiled two ways, and each entry is tagged accordingly:
+
+- **High confidence** — the town name and a region label appear together, unambiguously, in the
+  Standard's own map figure text (e.g. `SYDNEY Region A2`, `Region B1 BRISBANE`, `Wyndham (C)` all
+  appear as direct pairs when the PDF is text-extracted).
+- **Medium confidence** (marked `*` in the dropdown) — inferred from nearby map-text clustering plus
+  general engineering/public knowledge (e.g. Australia's cyclonic northern coastline), without a direct
+  same-label pairing. Treat these as a starting point, particularly for:
+  - the **A0–A5 sub-region split**, which is new in the 2021 edition and the least reliably
+    extractable part of the map text (though note `VR` and `Mc` are identical across A0–A5, so the
+    consequence of picking the wrong A-subregion is limited to `Md`, not the headline wind speed —
+    the higher-stakes call is cyclonic vs non-cyclonic and A0 vs non-A0, both handled with more
+    confidence), and
+  - anywhere close to a region boundary (e.g. the new B2/C boundary through central-north Queensland,
+    or B2/D through the WA Pilbara).
+
+Selecting a location only pre-fills the Region dropdown — it stays fully editable, and every selection
+shows the reasoning and a prompt to confirm against Figure 3.1 for anything but the high-confidence
+entries.
 
 ## What's deliberately out of scope
 

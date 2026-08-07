@@ -41,6 +41,42 @@ function populateRegions() {
   sel.value = "A2";
 }
 
+function populateLocations() {
+  const sel = $("siteLocation");
+  const groups = { AU: "Australia", NZ: "New Zealand" };
+  const byCountry = { AU: [], NZ: [] };
+  LOCATIONS.forEach((loc) => {
+    const country = loc.name.trim().endsWith("NZ") ? "NZ" : "AU";
+    byCountry[country].push(loc);
+  });
+
+  Object.entries(groups).forEach(([country, label]) => {
+    const optgroup = document.createElement("optgroup");
+    optgroup.label = label;
+    byCountry[country].forEach((loc) => {
+      const opt = document.createElement("option");
+      opt.value = loc.name;
+      opt.textContent = `${loc.name}${loc.confidence === "medium" ? " *" : ""}`;
+      optgroup.appendChild(opt);
+    });
+    sel.appendChild(optgroup);
+  });
+
+  sel.addEventListener("change", () => {
+    const loc = LOCATIONS.find((l) => l.name === sel.value);
+    const noteEl = $("locationNote");
+    if (!loc) {
+      noteEl.innerHTML = "";
+      return;
+    }
+    $("region").value = loc.region;
+    $("region").dispatchEvent(new Event("change"));
+    const cls = loc.confidence === "high" ? "note" : "warning";
+    const lead = loc.confidence === "high" ? "Region auto-filled." : "Region auto-filled (medium confidence — please verify).";
+    noteEl.innerHTML = `<div class="${cls}"><strong>${lead}</strong> ${loc.note} Region set to <strong>${loc.region}</strong> — you can override it in the Region dropdown above.</div>`;
+  });
+}
+
 function populateAri() {
   const sel = $("ari");
   VR_STANDARD_R.forEach((R) => {
@@ -314,6 +350,7 @@ function renderPressureResults() {
 
 document.addEventListener("DOMContentLoaded", () => {
   populateRegions();
+  populateLocations();
   populateAri();
   populateCpiCases();
   wireTopographyControls();

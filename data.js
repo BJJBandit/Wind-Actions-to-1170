@@ -177,3 +177,90 @@ const CPE_ROOF_LOWPITCH = {
     { from: 3, to: Infinity, label: "> 3h", values: { 0.5: [-0.2, 0.2], 1.0: null } },
   ],
 };
+
+// ---------------------------------------------------------------------------
+// Site location -> wind region lookup (assistive, not authoritative)
+// ---------------------------------------------------------------------------
+//
+// AS/NZS 1170.2:2021 defines wind regions by the maps in Figures 3.1(A) (Australia) and
+// 3.1(B) (New Zealand), not by any list of place names. There is no substitute for reading
+// those maps at your actual site, especially near a region boundary.
+//
+// This list was built two ways:
+//  - "high" confidence: the town name and a region label sit together, unambiguously, in the
+//    Standard's own map figure text (e.g. "SYDNEY Region A2", "Region B1 BRISBANE",
+//    "Wyndham (C)" all appear as direct pairs in Figure 3.1(A)).
+//  - "medium" confidence: inferred from a combination of nearby map-text clustering and
+//    well-established general engineering/public knowledge (e.g. Australia's cyclonic
+//    northern coastline is common knowledge independent of this specific Standard), but
+//    without a direct same-label pairing in the extracted map text. Treat these as a
+//    starting point only, particularly for the A0-A5 sub-region split (new in the 2021
+//    edition, and least reliably extractable from the map text) and any location close to a
+//    region boundary.
+//
+// Selecting a location only pre-fills the Region dropdown above -- it can still be changed
+// manually, and should be checked against Figure 3.1 for anything but the "high" confidence
+// entries.
+const LOCATIONS = [
+  // ---- Australia ----
+  { name: "Sydney, NSW", region: "A2", confidence: "high", note: "Directly labelled \"SYDNEY Region A2\" on Figure 3.1(A)." },
+  { name: "Wollongong, NSW", region: "A2", confidence: "high", note: "Adjacent to Sydney on the same labelled coastal stretch." },
+  { name: "Newcastle, NSW", region: "A2", confidence: "medium", note: "Inferred from the NSW coastal cluster near Sydney; confirm against Figure 3.1(A)." },
+  { name: "Canberra, ACT", region: "A3", confidence: "high", note: "Directly labelled \"CANBERRA A3\" on Figure 3.1(A)." },
+  { name: "Wagga Wagga, NSW", region: "A3", confidence: "medium", note: "Inferred from the inland-NSW A3 cluster on Figure 3.1(A)." },
+  { name: "Tamworth, NSW", region: "A3", confidence: "medium", note: "Inferred from the inland-NSW A3 cluster on Figure 3.1(A)." },
+
+  { name: "Brisbane, QLD", region: "B1", confidence: "high", note: "Directly labelled \"Region B1 BRISBANE\" on Figure 3.1(A)." },
+  { name: "Gold Coast, QLD", region: "B1", confidence: "medium", note: "Adjacent to Brisbane; confirm against Figure 3.1(A), especially near the NSW border." },
+  { name: "Sunshine Coast, QLD", region: "B1", confidence: "medium", note: "Adjacent to Brisbane on Figure 3.1(A); confirm boundary distance." },
+  { name: "Toowoomba, QLD", region: "A0", confidence: "medium", note: "Appears near the Region A0 label on Figure 3.1(A); this is an inland/elevated boundary area -- confirm." },
+  { name: "Bundaberg, QLD", region: "B2", confidence: "medium", note: "Central QLD coast cyclonic zone; boundary with B1 -- confirm against Figure 3.1(A)." },
+  { name: "Gladstone, QLD", region: "B2", confidence: "medium", note: "Central QLD coast cyclonic zone; confirm against Figure 3.1(A)." },
+  { name: "Rockhampton, QLD", region: "B2", confidence: "medium", note: "Near the \"Region B2 Biloela\" label on Figure 3.1(A) (Biloela is a nearby inland town)." },
+  { name: "Mackay, QLD", region: "B2", confidence: "medium", note: "Central QLD coast cyclonic zone; confirm against Figure 3.1(A)." },
+  { name: "Townsville, QLD", region: "C", confidence: "medium", note: "Historically Region C; sits near the new B2/C boundary introduced in 2021 -- confirm." },
+  { name: "Cairns, QLD", region: "C", confidence: "high", note: "Clustered directly with \"Region C\" labels on Figure 3.1(A); well-established cyclonic region." },
+  { name: "Mount Isa, QLD", region: "A0", confidence: "medium", note: "Inland arid interior; inferred non-synoptic/downdraft zone -- confirm against Figure 3.1(A)." },
+
+  { name: "Darwin, NT", region: "C", confidence: "high", note: "Clustered directly with \"Region C\" labels on Figure 3.1(A); well-established cyclonic region." },
+  { name: "Nhulunbuy, NT", region: "B2", confidence: "medium", note: "Labelled near \"Region B2\" on Figure 3.1(A)." },
+  { name: "Alice Springs, NT", region: "A0", confidence: "medium", note: "Inland arid interior; inferred non-synoptic/downdraft zone -- confirm against Figure 3.1(A)." },
+  { name: "Tennant Creek, NT", region: "A0", confidence: "medium", note: "Inland arid interior; inferred non-synoptic/downdraft zone -- confirm against Figure 3.1(A)." },
+
+  { name: "Perth, WA", region: "A1", confidence: "high", note: "Directly labelled near \"PERTH ... Region A1\" on Figure 3.1(A)." },
+  { name: "Esperance, WA", region: "A1", confidence: "high", note: "Directly labelled alongside Perth's \"Region A1\" on Figure 3.1(A)." },
+  { name: "Albany, WA", region: "A1", confidence: "medium", note: "Adjacent to the Perth/Esperance A1 cluster on Figure 3.1(A)." },
+  { name: "Bunbury, WA", region: "A1", confidence: "medium", note: "South-west WA coast, near Perth's A1 zone -- confirm." },
+  { name: "Geraldton, WA", region: "B2", confidence: "medium", note: "Directly near a \"Region B2\" label on Figure 3.1(A), just north of the A1 zone -- confirm, this is close to a boundary." },
+  { name: "Kalgoorlie, WA", region: "A1", confidence: "medium", note: "Inland WA; inferred from proximity to the A1 zone on Figure 3.1(A) -- confirm." },
+  { name: "Broome, WA", region: "C", confidence: "high", note: "Clustered directly with \"Region C\" labels on Figure 3.1(A); well-established cyclonic region." },
+  { name: "Port Hedland, WA", region: "B2", confidence: "medium", note: "Figure 3.1(A) map text places a \"B2\" label directly by Port Hedland -- but this is a severe-cyclone area, confirm carefully against Figure 3.1(A) / Table 3.1(A) Region D." },
+  { name: "Karratha, WA", region: "D", confidence: "medium", note: "Near the \"Region D\" label on Figure 3.1(A); one of the most severe cyclonic areas in Australia -- confirm." },
+  { name: "Exmouth, WA", region: "D", confidence: "medium", note: "Near the \"Region D\" label on Figure 3.1(A); one of the most severe cyclonic areas in Australia -- confirm." },
+
+  { name: "Adelaide, SA", region: "A2", confidence: "medium", note: "No direct map-text label found; assumed consistent with other southern temperate capitals -- confirm against Figure 3.1(A)." },
+  { name: "Ceduna, SA", region: "A5", confidence: "high", note: "Directly labelled \"Region A5 Ceduna\" on Figure 3.1(A)." },
+  { name: "Port Augusta, SA", region: "A3", confidence: "medium", note: "Inferred from the inland A3 cluster on Figure 3.1(A)." },
+  { name: "Mount Gambier, SA", region: "A2", confidence: "medium", note: "No direct map-text label found; low confidence -- confirm against Figure 3.1(A)." },
+
+  { name: "Melbourne, VIC", region: "A4", confidence: "medium", note: "Inferred from the \"Region A4\" label near Ballarat/Geelong on Figure 3.1(A); confirm." },
+  { name: "Geelong, VIC", region: "A4", confidence: "medium", note: "Near the \"Region A4\" label on Figure 3.1(A)." },
+  { name: "Ballarat, VIC", region: "A4", confidence: "medium", note: "Near the \"Region A4\" label on Figure 3.1(A)." },
+  { name: "Bendigo, VIC", region: "A4", confidence: "medium", note: "Near the \"Region A4\" cluster on Figure 3.1(A); low-medium confidence -- confirm." },
+  { name: "Mildura, VIC", region: "A3", confidence: "medium", note: "Inferred from the inland A3 cluster on Figure 3.1(A)." },
+  { name: "Sale, VIC", region: "A4", confidence: "medium", note: "Near the \"Region A4\" label on Figure 3.1(A)." },
+
+  { name: "Hobart, TAS", region: "A4", confidence: "medium", note: "Near the \"Region A4\" cluster on Figure 3.1(A); confirm -- Tasmania-wide sub-region boundaries are not clearly extractable." },
+  { name: "Launceston, TAS", region: "A4", confidence: "medium", note: "Near the \"Region A4\" cluster on Figure 3.1(A); confirm." },
+
+  // ---- New Zealand ----
+  { name: "Auckland, NZ", region: "NZ1", confidence: "high", note: "Directly labelled near \"REGION NZ1\" on Figure 3.1(B)." },
+  { name: "Hamilton, NZ", region: "NZ1", confidence: "medium", note: "Near the Auckland NZ1 cluster on Figure 3.1(B)." },
+  { name: "New Plymouth, NZ", region: "NZ1", confidence: "medium", note: "West coast North Island; confirm against Figure 3.1(B), close to the NZ1/NZ2 boundary." },
+  { name: "Rotorua, NZ", region: "NZ2", confidence: "high", note: "Directly labelled \"Rotorua REGION NZ2\" on Figure 3.1(B)." },
+  { name: "Wellington, NZ", region: "NZ3", confidence: "medium", note: "Not directly labelled in the extracted map text, but NZ3 has the highest tabulated wind speeds in Table 3.1(B) and Wellington/Cook Strait is well known for extreme wind -- confirm against Figure 3.1(B)." },
+  { name: "Blenheim, NZ", region: "NZ3", confidence: "medium", note: "Top of South Island near Cook Strait; confirm against Figure 3.1(B), could be NZ2." },
+  { name: "Christchurch, NZ", region: "NZ2", confidence: "high", note: "Directly labelled \"Christchurch REGION NZ2\" on Figure 3.1(B)." },
+  { name: "Dunedin, NZ", region: "NZ2", confidence: "medium", note: "South Island; no direct label found -- confirm against Figure 3.1(B)." },
+  { name: "Invercargill, NZ", region: "NZ2", confidence: "medium", note: "South Island; no direct label found -- confirm against Figure 3.1(B)." },
+];

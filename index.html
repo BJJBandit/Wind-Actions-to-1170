@@ -29,7 +29,15 @@
 
     <div class="grid">
       <div class="field">
-        <label for="region">Region</label>
+        <label for="siteLocation">Site location <span class="ref">(optional, fills in Region below)</span></label>
+        <select id="siteLocation">
+          <option value="">— pick manually / not listed —</option>
+        </select>
+        <p class="hint">* = medium-confidence match (inferred, not directly labelled on the Standard's region map) — verify against Figure 3.1.</p>
+      </div>
+
+      <div class="field">
+        <label for="region">Region <span class="ref">(Table 3.1, Figure 3.1)</span></label>
         <select id="region"></select>
       </div>
 
@@ -63,6 +71,8 @@
         <input type="number" id="azimuth" min="0" max="359" step="1" value="0" />
       </div>
     </div>
+
+    <div id="locationNote"></div>
 
     <details class="subpanel">
       <summary>Shielding multiplier, M<sub>s</sub> <span class="ref">(Clause 4.3, Table 4.2)</span></summary>
