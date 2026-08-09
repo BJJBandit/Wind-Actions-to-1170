@@ -177,7 +177,7 @@ function computeMtFromForm(regionKey) {
   const H = parseFloat($("mhH").value) || 0;
   const Lu = parseFloat($("mhLu").value) || 1;
   const x = parseFloat($("mhX").value) || 0;
-  const z = parseFloat($("refHeight").value) || 0;
+  const z = parseFloat($("bldH").value) || 0;
   const downwindType = $("mhType").value;
   const mh = computeMh({ H, Lu, x, z, downwindType });
 
@@ -233,21 +233,20 @@ function renderSpeedResults(data) {
       <thead><tr><th>Orthogonal axis</th><th class="num">Bearing</th><th class="num">V<sub>des,θ</sub> (m/s)</th></tr></thead>
       <tbody>${desRows}</tbody>
     </table>
-    <p class="note">Copy the governing V<sub>des,θ</sub> value into Section&nbsp;2 below to calculate design wind pressures.</p>
+    <p class="note">The governing V<sub>des,θ</sub> value has been copied into Section&nbsp;3 below to calculate design wind pressures.</p>
   `;
 
   // auto-fill pressure section with the governing (max) Vdes
   const maxVdes = Math.max(...designResults.map((d) => d.Vdes));
   $("pVdes").value = maxVdes.toFixed(1);
-  $("bldH").value = z;
 }
 
 function runSpeedCalc() {
   const regionKey = $("region").value;
   const R = readAriYears();
   const terrainCategory = parseFloat($("terrainCategory").value);
-  const z = parseFloat($("refHeight").value) || 0;
-  const h = z; // reference height used consistently as average roof height for Ms applicability
+  const z = parseFloat($("bldH").value) || 0;
+  const h = z; // building height (Building section) used consistently as average roof height for Ms applicability
   const sRaw = $("shieldingS").value;
   const s = sRaw === "" ? null : parseFloat(sRaw);
   const azimuth = parseFloat($("azimuth").value) || 0;

@@ -95,12 +95,14 @@ To avoid presenting numbers with false confidence, the following are **not** aut
 ## Usage
 
 1. Open `index.html` in a browser (or visit the GitHub Pages URL if enabled for this repo).
-2. **Section 1** — pick region, ARI, terrain category, reference height, and optional shielding /
+2. **Section 1 (Building)** — set the building's plan size (W × L, or pick a preset), average roof
+   height, roof pitch, wind direction relative to the ridge, and bearing (drag the compass or use the
+   dropdown). These feed both sections below.
+3. **Section 2 (Site wind speed)** — pick region, ARI, terrain category, and optional shielding /
    topography inputs, then **Calculate wind speeds**. This gives `Vsit,β` for all 8 directions and
-   `Vdes,θ` for the 4 building axes.
-3. **Section 2** — the governing `Vdes,θ` and reference height carry over automatically; fill in
-   building plan dimensions, roof pitch, wind direction relative to the ridge, and an internal pressure
-   case, then **Calculate wind pressures** for windward/leeward/side wall and (pitch < 10°) roof zones.
+   `Vdes,θ` for the 4 building axes; the governing `Vdes,θ` is copied into Section 3 automatically.
+4. **Section 3 (Design wind pressure)** — set `Cdyn` and an internal pressure case, then **Calculate
+   wind pressures** for windward/leeward/side wall and (pitch < 10°) roof zones.
 
 ## Hosting on GitHub Pages
 

@@ -23,9 +23,82 @@
 </div>
 
 <main>
-  <!-- ============================= SECTION A ============================= -->
+  <!-- ============================= SECTION: BUILDING ============================= -->
   <section class="card">
-    <h2>1. Site wind speed &amp; design wind speed <span class="ref">(Sections 2&ndash;4)</span></h2>
+    <h2>1. Building <span class="ref">(plan size, height, roof, orientation)</span></h2>
+    <p class="hint">Describe the building first &mdash; its plan dimensions and height are used both for the site-exposure calculation
+      below (average roof height) and for the wall/roof pressure calculation further down.</p>
+
+    <div class="grid">
+      <div class="field">
+        <label for="buildingSize">Building size <span class="ref">(preset, fills in W &amp; L below)</span></label>
+        <select id="buildingSize">
+          <option value="">— custom / enter below —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="bldB">Building width, W = b (m) &ndash; across wind</label>
+        <input type="number" id="bldB" min="0.1" step="0.1" value="20" />
+      </div>
+      <div class="field">
+        <label for="bldD">Building length, L = d (m) &ndash; along wind</label>
+        <input type="number" id="bldD" min="0.1" step="0.1" value="15" />
+      </div>
+      <div class="field">
+        <label for="bldH">Average roof height, h = z (m)</label>
+        <input type="number" id="bldH" min="0.1" step="0.1" value="10" />
+      </div>
+      <div class="field">
+        <label for="roofPitch">Roof pitch, α (degrees)</label>
+        <input type="number" id="roofPitch" min="0" max="45" step="1" value="5" />
+      </div>
+      <div class="field">
+        <label for="windTheta">Wind direction relative to ridge</label>
+        <select id="windTheta">
+          <option value="0">θ = 0° &ndash; normal to ridge (onto width b)</option>
+          <option value="90">θ = 90° &ndash; parallel to ridge (onto depth d)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="azimuth">Building axis (θ=0°) bearing from true North (°)</label>
+        <select id="azimuth"></select>
+      </div>
+    </div>
+
+    <div class="compass-wrap">
+      <svg id="compassSvg" viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Building orientation relative to true North, drag to rotate">
+        <defs>
+          <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" class="compass-arrowhead" />
+          </marker>
+        </defs>
+        <circle cx="120" cy="120" r="102" class="compass-ring" />
+        <circle cx="120" cy="120" r="70" class="compass-ring-inner" />
+        <g class="compass-ticks">
+          <line x1="120" y1="18" x2="120" y2="30" />
+          <line x1="222" y1="120" x2="210" y2="120" />
+          <line x1="120" y1="222" x2="120" y2="210" />
+          <line x1="18" y1="120" x2="30" y2="120" />
+        </g>
+        <g class="compass-labels">
+          <text x="120" y="14" text-anchor="middle">N</text>
+          <text x="230" y="125" text-anchor="middle">E</text>
+          <text x="120" y="236" text-anchor="middle">S</text>
+          <text x="10" y="125" text-anchor="middle">W</text>
+        </g>
+        <g id="buildingGroup">
+          <rect id="buildingRect" class="compass-building" rx="2" />
+          <line id="theta0Arrow" class="compass-theta-arrow" marker-end="url(#arrowHead)" />
+          <text id="theta0Label" class="compass-theta-label" text-anchor="middle">θ=0°</text>
+        </g>
+      </svg>
+      <p class="hint">Drag the compass (or use the dropdown above) to set the building's bearing. The arrow marks the θ=0° face used in the design wind speed table below; the rectangle reflects the plan dimensions (W × L) entered above.</p>
+    </div>
+  </section>
+
+  <!-- ============================= SECTION: SITE WIND SPEED ============================= -->
+  <section class="card">
+    <h2>2. Site wind speed &amp; design wind speed <span class="ref">(Sections 2&ndash;4)</span></h2>
 
     <div class="grid">
       <div class="field">
@@ -60,47 +133,9 @@
           <option value="4">4 &ndash; city centres, dense large obstructions</option>
         </select>
       </div>
-
-      <div class="field">
-        <label for="refHeight">Reference / average roof height, h = z (m)</label>
-        <input type="number" id="refHeight" min="0" step="0.1" value="10" />
-      </div>
-
-      <div class="field">
-        <label for="azimuth">Building axis (θ=0°) bearing from true North (°)</label>
-        <select id="azimuth"></select>
-      </div>
     </div>
 
-    <div class="compass-wrap">
-      <svg id="compassSvg" viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Building orientation relative to true North, drag to rotate">
-        <defs>
-          <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-            <path d="M0,0 L8,4 L0,8 Z" class="compass-arrowhead" />
-          </marker>
-        </defs>
-        <circle cx="120" cy="120" r="102" class="compass-ring" />
-        <circle cx="120" cy="120" r="70" class="compass-ring-inner" />
-        <g class="compass-ticks">
-          <line x1="120" y1="18" x2="120" y2="30" />
-          <line x1="222" y1="120" x2="210" y2="120" />
-          <line x1="120" y1="222" x2="120" y2="210" />
-          <line x1="18" y1="120" x2="30" y2="120" />
-        </g>
-        <g class="compass-labels">
-          <text x="120" y="14" text-anchor="middle">N</text>
-          <text x="230" y="125" text-anchor="middle">E</text>
-          <text x="120" y="236" text-anchor="middle">S</text>
-          <text x="10" y="125" text-anchor="middle">W</text>
-        </g>
-        <g id="buildingGroup">
-          <rect id="buildingRect" class="compass-building" rx="2" />
-          <line id="theta0Arrow" class="compass-theta-arrow" marker-end="url(#arrowHead)" />
-          <text id="theta0Label" class="compass-theta-label" text-anchor="middle">θ=0°</text>
-        </g>
-      </svg>
-      <p class="hint">Drag the compass (or use the dropdown above) to set the building's bearing. The arrow marks the θ=0° face used in the design wind speed table below; the rectangle reflects the plan dimensions (b × d) entered in Section 2.</p>
-    </div>
+    <p class="hint">Average roof height (h = z) and building bearing are set in the Building section above.</p>
 
     <div id="locationNote"></div>
 
@@ -168,9 +203,9 @@
     <div id="speedResults" class="results" hidden></div>
   </section>
 
-  <!-- ============================= SECTION B ============================= -->
+  <!-- ============================= SECTION: DESIGN WIND PRESSURE ============================= -->
   <section class="card">
-    <h2>2. Design wind pressure &ndash; enclosed rectangular building <span class="ref">(Section 5, simplified)</span></h2>
+    <h2>3. Design wind pressure &ndash; enclosed rectangular building <span class="ref">(Section 5, simplified)</span></h2>
     <p class="hint">Walls are fully covered (Tables 5.2(A)&ndash;(C)). Roofs are only covered for pitch &lt;10&deg; (Table 5.3(A)) &mdash; for
       pitched roofs &ge;10&deg;, enter a Cp,e value you've sourced from Tables 5.3(B)/(C) directly. K<sub>a</sub>, K<sub>c</sub>, K<sub>l</sub>, K<sub>p</sub>
       are all taken as 1.0 (no area reduction / local cladding factors) &mdash; apply these separately for cladding and fixing design.</p>
@@ -185,39 +220,12 @@
         <input type="number" id="pCdyn" min="1" step="0.01" value="1.0" />
       </div>
       <div class="field">
-        <label for="buildingSize">Building size <span class="ref">(preset, fills in W &amp; L below)</span></label>
-        <select id="buildingSize">
-          <option value="">— custom / enter below —</option>
-        </select>
-      </div>
-      <div class="field">
-        <label for="bldB">Building width, W = b (m) &ndash; across wind</label>
-        <input type="number" id="bldB" min="0.1" step="0.1" value="20" />
-      </div>
-      <div class="field">
-        <label for="bldD">Building length, L = d (m) &ndash; along wind</label>
-        <input type="number" id="bldD" min="0.1" step="0.1" value="15" />
-      </div>
-      <div class="field">
-        <label for="bldH">Average roof height, h (m)</label>
-        <input type="number" id="bldH" min="0.1" step="0.1" value="10" />
-      </div>
-      <div class="field">
-        <label for="roofPitch">Roof pitch, α (degrees)</label>
-        <input type="number" id="roofPitch" min="0" max="45" step="1" value="5" />
-      </div>
-      <div class="field">
-        <label for="windTheta">Wind direction relative to ridge</label>
-        <select id="windTheta">
-          <option value="0">θ = 0° &ndash; normal to ridge (onto width b)</option>
-          <option value="90">θ = 90° &ndash; parallel to ridge (onto depth d)</option>
-        </select>
-      </div>
-      <div class="field">
         <label for="cpiCase">Internal pressure case <span class="ref">(Table 5.1(A))</span></label>
         <select id="cpiCase"></select>
       </div>
     </div>
+
+    <p class="hint">Plan size (W × L), roof height, roof pitch and wind direction relative to the ridge are set in the Building section above.</p>
 
     <button id="calcPressure" class="primary">Calculate wind pressures</button>
 
