@@ -356,6 +356,100 @@ function renderPressureResults() {
 }
 
 // ---------------------------------------------------------------------------
+// Compass diagram (Section 1) -- rotates a building footprint to the chosen
+// azimuth and allows dragging it directly to set that azimuth.
+// ---------------------------------------------------------------------------
+
+const COMPASS_CENTER = 120;
+const COMPASS_MAX_HALF_SPAN = 62; // keep the rectangle within the inner dashed ring
+
+function renderCompass() {
+  const azimuth = parseFloat($("azimuth").value) || 0;
+  const b = parseFloat($("bldB")?.value) || 20;
+  const d = parseFloat($("bldD")?.value) || 15;
+
+  const longest = Math.max(b, d, 0.1);
+  const scale = COMPASS_MAX_HALF_SPAN / (longest / 2);
+  const halfB = Math.max(10, (b * scale) / 2);
+  const halfD = Math.max(10, (d * scale) / 2);
+
+  const rect = $("buildingRect");
+  rect.setAttribute("x", COMPASS_CENTER - halfB);
+  rect.setAttribute("y", COMPASS_CENTER - halfD);
+  rect.setAttribute("width", halfB * 2);
+  rect.setAttribute("height", halfD * 2);
+
+  $("buildingGroup").setAttribute("transform", `rotate(${azimuth} ${COMPASS_CENTER} ${COMPASS_CENTER})`);
+
+  const arrowTipY = COMPASS_CENTER - halfD - 16;
+  const arrow = $("theta0Arrow");
+  arrow.setAttribute("x1", COMPASS_CENTER);
+  arrow.setAttribute("y1", COMPASS_CENTER - halfD);
+  arrow.setAttribute("x2", COMPASS_CENTER);
+  arrow.setAttribute("y2", arrowTipY);
+
+  const label = $("theta0Label");
+  label.setAttribute("x", COMPASS_CENTER);
+  label.setAttribute("y", arrowTipY - 6);
+  // counter-rotate the label so it always reads upright regardless of building rotation
+  label.setAttribute("transform", `rotate(${-azimuth} ${COMPASS_CENTER} ${arrowTipY - 6})`);
+}
+
+function setAzimuthFromCompassEvent(evt) {
+  const svg = $("compassSvg");
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return;
+  const local = pt.matrixTransform(ctm.inverse());
+  const dx = local.x - COMPASS_CENTER;
+  const dy = local.y - COMPASS_CENTER;
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return; // ignore clicks dead-centre
+  let bearing = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  bearing = ((Math.round(bearing / 5) * 5) % 360 + 360) % 360;
+
+  const azimuthSel = $("azimuth");
+  azimuthSel.value = String(bearing);
+  azimuthSel.dispatchEvent(new Event("change"));
+}
+
+function wireCompass() {
+  const svg = $("compassSvg");
+  let dragging = false;
+
+  svg.addEventListener("pointerdown", (evt) => {
+    dragging = true;
+    setAzimuthFromCompassEvent(evt);
+    try {
+      svg.setPointerCapture(evt.pointerId);
+    } catch (e) {
+      // Some environments (or synthetic pointer ids) don't support capture --
+      // dragging still works within the element bounds without it.
+    }
+  });
+  svg.addEventListener("pointermove", (evt) => {
+    if (!dragging) return;
+    setAzimuthFromCompassEvent(evt);
+  });
+  svg.addEventListener("pointerup", (evt) => {
+    dragging = false;
+    try {
+      svg.releasePointerCapture(evt.pointerId);
+    } catch (e) {
+      // no-op if capture was never established
+    }
+  });
+  svg.addEventListener("pointercancel", () => {
+    dragging = false;
+  });
+
+  $("azimuth").addEventListener("change", renderCompass);
+  $("bldB")?.addEventListener("input", renderCompass);
+  $("bldD")?.addEventListener("input", renderCompass);
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -366,6 +460,8 @@ document.addEventListener("DOMContentLoaded", () => {
   populateAri();
   populateCpiCases();
   wireTopographyControls();
+  wireCompass();
+  renderCompass();
 
   $("calcSpeeds").addEventListener("click", runSpeedCalc);
   $("calcPressure").addEventListener("click", renderPressureResults);
