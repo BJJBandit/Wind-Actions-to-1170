@@ -264,3 +264,21 @@ const LOCATIONS = [
   { name: "Dunedin, NZ", region: "NZ2", confidence: "medium", note: "South Island; no direct label found -- confirm against Figure 3.1(B)." },
   { name: "Invercargill, NZ", region: "NZ2", confidence: "medium", note: "South Island; no direct label found -- confirm against Figure 3.1(B)." },
 ];
+
+// ---------------------------------------------------------------------------
+// Building size presets (Section 2) -- illustrative footprints only, not
+// sourced from the Standard. W = width (b, across-wind), L = length (d, along-wind).
+// ---------------------------------------------------------------------------
+const BUILDING_SIZES = [
+  { name: "Domestic garage/carport (W6 x L6 m)", w: 6, l: 6 },
+  { name: "Small shed (W6 x L9 m)", w: 6, l: 9 },
+  { name: "Single dwelling (W10 x L15 m)", w: 10, l: 15 },
+  { name: "Large house/duplex (W15 x L20 m)", w: 15, l: 20 },
+  { name: "Rural shed (W9 x L12 m)", w: 9, l: 12 },
+  { name: "Farm shed (W15 x L24 m)", w: 15, l: 24 },
+  { name: "Machinery shed (W20 x L30 m)", w: 20, l: 30 },
+  { name: "Small commercial/warehouse (W20 x L40 m)", w: 20, l: 40 },
+  { name: "Medium warehouse (W30 x L50 m)", w: 30, l: 50 },
+  { name: "Large industrial warehouse (W40 x L60 m)", w: 40, l: 60 },
+  { name: "Distribution centre (W60 x L100 m)", w: 60, l: 100 },
+];

@@ -88,6 +88,25 @@ function populateAzimuth() {
   sel.value = "0";
 }
 
+function populateBuildingSizes() {
+  const sel = $("buildingSize");
+  BUILDING_SIZES.forEach((size) => {
+    const opt = document.createElement("option");
+    opt.value = size.name;
+    opt.textContent = size.name;
+    sel.appendChild(opt);
+  });
+
+  sel.addEventListener("change", () => {
+    const size = BUILDING_SIZES.find((s) => s.name === sel.value);
+    if (!size) return; // "custom / enter below" -- leave existing W/L untouched
+    $("bldB").value = size.w;
+    $("bldD").value = size.l;
+    $("bldB").dispatchEvent(new Event("input"));
+    $("bldD").dispatchEvent(new Event("input"));
+  });
+}
+
 function populateAri() {
   const sel = $("ari");
   VR_STANDARD_R.forEach((R) => {
@@ -457,6 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
   populateRegions();
   populateLocations();
   populateAzimuth();
+  populateBuildingSizes();
   populateAri();
   populateCpiCases();
   wireTopographyControls();
