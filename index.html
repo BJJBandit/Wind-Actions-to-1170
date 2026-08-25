@@ -168,7 +168,13 @@
           <input type="number" id="mtManual" min="1" step="0.01" value="1.0" />
         </div>
       </div>
-      <div id="mhInputs" class="grid" hidden>
+      <div id="mhInputs" hidden>
+        <p class="hint">Sourcing H and L<sub>u</sub>: draw a line along the wind direction, through the site and the upwind crest, in
+          <strong>Google Earth</strong> (desktop/Pro) and use its elevation profile / path tool &mdash; read H as the rise to the crest and
+          L<sub>u</sub> as the distance back from the crest to where the profile drops to half of H. Google Earth's terrain is SRTM-derived
+          (~30&nbsp;m grid) &mdash; fine for a preliminary check, but for a site near a significant hill/escarpment prefer an official DEM/contour
+          source (Geoscience Australia's ELVIS, LINZ data in NZ, or a site survey) for the final design value.</p>
+        <div class="grid">
         <div class="field">
           <label for="mhH">Feature height, H (m)</label>
           <input type="number" id="mhH" min="0" step="0.1" value="0" />
@@ -194,6 +200,7 @@
         <div class="field" id="mhElevWrap" hidden>
           <label for="mhElev">Site elevation above sea level, E (m) &ndash; A4/NZ1-4 sites &gt;500 m AMSL only</label>
           <input type="number" id="mhElev" min="0" step="1" value="0" />
+        </div>
         </div>
       </div>
     </details>
