@@ -31,6 +31,21 @@
 
     <div class="grid">
       <div class="field">
+        <label for="buildingType">Building type <span class="ref">(which part of the Standard applies)</span></label>
+        <select id="buildingType"></select>
+      </div>
+      <div class="field">
+        <label for="importanceLevel">Building importance level <span class="ref">(NCC / AS&#8203;/NZS 1170.0, not 1170.2)</span></label>
+        <select id="importanceLevel">
+          <option value="">— select to suggest an ARI below —</option>
+        </select>
+      </div>
+    </div>
+    <div id="buildingTypeNote"></div>
+    <div id="importanceLevelNote"></div>
+
+    <div class="grid">
+      <div class="field">
         <label for="buildingSize">Building size <span class="ref">(preset, fills in W &amp; L below)</span></label>
         <select id="buildingSize">
           <option value="">— custom / enter below —</option>
@@ -233,6 +248,8 @@
     <p class="hint">Walls are fully covered (Tables 5.2(A)&ndash;(C)). Roofs are only covered for pitch &lt;10&deg; (Table 5.3(A)) &mdash; for
       pitched roofs &ge;10&deg;, enter a Cp,e value you've sourced from Tables 5.3(B)/(C) directly. K<sub>a</sub>, K<sub>c</sub>, K<sub>l</sub>, K<sub>p</sub>
       are all taken as 1.0 (no area reduction / local cladding factors) &mdash; apply these separately for cladding and fixing design.</p>
+
+    <div id="buildingTypeGate" class="warning" hidden></div>
 
     <div class="grid">
       <div class="field">

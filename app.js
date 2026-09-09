@@ -88,6 +88,70 @@ function populateAzimuth() {
   sel.value = "0";
 }
 
+function populateBuildingTypes() {
+  const sel = $("buildingType");
+  BUILDING_TYPES.forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `${t.label} (${t.clause})`;
+    sel.appendChild(opt);
+  });
+
+  function refresh() {
+    const type = BUILDING_TYPES.find((t) => t.id === sel.value);
+    const gate = $("buildingTypeGate");
+    const note = $("buildingTypeNote");
+    const calcBtn = $("calcPressure");
+
+    if (!type || type.supported) {
+      gate.hidden = true;
+      note.innerHTML = "";
+      calcBtn.disabled = false;
+      calcBtn.title = "";
+      return;
+    }
+
+    const msg = `This calculator's Section&nbsp;3 (design wind pressure) only covers enclosed rectangular buildings (Section&nbsp;5).
+      <strong>${type.label}</strong> is covered by <strong>${type.clause}</strong> of AS/NZS&nbsp;1170.2:2021, which this tool does not
+      calculate &mdash; refer to that Appendix directly. Section&nbsp;2 (site &amp; design wind speed) is unaffected and the V<sub>des,θ</sub>
+      values calculated there still apply as the input to ${type.clause}'s own aerodynamic shape factor.`;
+    gate.innerHTML = msg;
+    gate.hidden = false;
+    note.innerHTML = `<div class="note">Building type set to <strong>${type.label}</strong> (${type.clause}) &mdash; recorded for reference only.</div>`;
+    calcBtn.disabled = true;
+    calcBtn.title = `Not calculated for ${type.label} -- see the notice in Section 3`;
+  }
+
+  sel.addEventListener("change", refresh);
+  refresh();
+}
+
+function populateImportanceLevels() {
+  const sel = $("importanceLevel");
+  IMPORTANCE_LEVELS.forEach((il) => {
+    const opt = document.createElement("option");
+    opt.value = il.id;
+    opt.textContent = il.label;
+    sel.appendChild(opt);
+  });
+
+  sel.addEventListener("change", () => {
+    const il = IMPORTANCE_LEVELS.find((x) => x.id === sel.value);
+    const note = $("importanceLevelNote");
+    if (!il) {
+      note.innerHTML = "";
+      return;
+    }
+    $("ari").value = String(il.ariUls);
+    $("ari").dispatchEvent(new Event("change"));
+    note.innerHTML = `<div class="warning">Set R&nbsp;=&nbsp;${il.ariUls}&nbsp;years below, the commonly-published ULS default for
+      ${il.id} at a 50-year design working life (AS/NZS&nbsp;1170.0 / NCC lineage) &mdash; not read from a specific NCC edition in this
+      session. Confirm the importance level classification and the exact R value against the current NCC and AS/NZS&nbsp;1170.0 for this
+      building, especially if the design working life isn't 50 years. Serviceability limit state design uses a separate, shorter R
+      (commonly 20&ndash;25 years) not set by this selector.</div>`;
+  });
+}
+
 function populateBuildingSizes() {
   const sel = $("buildingSize");
   BUILDING_SIZES.forEach((size) => {
@@ -328,6 +392,9 @@ function runSpeedCalc() {
 // ---------------------------------------------------------------------------
 
 function renderPressureResults() {
+  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType").value);
+  if (type && !type.supported) return; // defence-in-depth -- the button is disabled for this case
+
   const Vdes = parseFloat($("pVdes").value) || 0;
   const Cdyn = parseFloat($("pCdyn").value) || 1.0;
   const b = parseFloat($("bldB").value) || 1;
@@ -576,6 +643,8 @@ document.addEventListener("DOMContentLoaded", () => {
   populateRegions();
   populateLocations();
   populateAzimuth();
+  populateBuildingTypes();
+  populateImportanceLevels();
   populateBuildingSizes();
   populateAri();
   populateCpiCases();

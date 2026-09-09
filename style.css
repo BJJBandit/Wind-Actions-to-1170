@@ -168,6 +168,12 @@ button.primary:hover {
   background: var(--accent-dark);
 }
 
+button.primary:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .results {
   margin-top: 1.25rem;
   padding-top: 1rem;

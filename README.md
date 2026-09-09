@@ -65,6 +65,38 @@ Selecting a location only pre-fills the Region dropdown — it stays fully edita
 shows the reasoning and a prompt to confirm against Figure 3.1 for anything but the high-confidence
 entries.
 
+## Building type dropdown
+
+AS/NZS 1170.2:2021 covers five broad categories of structure, in Section 5 and Appendices A–D. This
+tool only calculates the first:
+
+| Building type | Where it's covered | Calculated here? |
+|---|---|---|
+| Enclosed rectangular building | Section 5 | Yes (walls fully, roof pitch < 10° only) |
+| Circular bins, silos and tanks | Appendix A | No |
+| Freestanding walls, hoardings, canopies and roofs | Appendix B | No |
+| Exposed structural members, frames and lattice towers | Appendix C | No |
+| Flags and circular shapes | Appendix D | No |
+
+Selecting one of the unsupported types disables the Section 3 calculation (with a notice pointing at
+the right Appendix) rather than silently producing nothing or, worse, a wrong number — Section 2's site
+and design wind speed calculation is unaffected either way, since it's independent of building type.
+
+## Building importance level dropdown
+
+This is an AS/NZS 1170.0 / National Construction Code (NCC) concept, not part of AS/NZS 1170.2 itself —
+1170.2 only supplies wind speeds for a given average recurrence interval (ARI); it's 1170.0/the NCC that
+assigns an importance level to a structure and, from that, the ARI to design for. The R values offered
+(IL1→100, IL2→500, IL3→1000, IL4→2000 years) are the commonly-published ULS defaults for a **50-year
+design working life**, not read from a specific NCC edition in this session. Selecting one pre-fills the
+ARI field in Section 2 (still fully editable) with a prompt to confirm:
+
+- the importance level classification itself against the current NCC's criteria for the actual building,
+- the exact R value against the current NCC/AS 1170.0 edition, particularly for a design working life
+  other than 50 years, and
+- that serviceability limit state design uses a separate, shorter ARI (commonly 20–25 years) which this
+  selector does not set.
+
 ## What's deliberately out of scope
 
 To avoid presenting numbers with false confidence, the following are **not** automated:
@@ -95,9 +127,11 @@ To avoid presenting numbers with false confidence, the following are **not** aut
 ## Usage
 
 1. Open `index.html` in a browser (or visit the GitHub Pages URL if enabled for this repo).
-2. **Section 1 (Building)** — set the building's plan size (W × L, or pick a preset), average roof
-   height, roof pitch, wind direction relative to the ridge, and bearing (drag the compass or use the
-   dropdown). These feed both sections below.
+2. **Section 1 (Building)** — pick the building type (only "Enclosed rectangular building" is actually
+   calculated — see below) and, optionally, an importance level to suggest an ARI; then set the
+   building's plan size (W × L, or pick a preset), average roof height, roof pitch, wind direction
+   relative to the ridge, and bearing (drag the compass or use the dropdown). These feed both sections
+   below.
 3. **Section 2 (Site wind speed)** — pick region, ARI, terrain category, and optional shielding /
    topography inputs, then **Calculate wind speeds**. This gives `Vsit,β` for all 8 directions and
    `Vdes,θ` for the 4 building axes; the governing `Vdes,θ` is copied into Section 3 automatically.

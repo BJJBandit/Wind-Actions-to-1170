@@ -282,3 +282,43 @@ const BUILDING_SIZES = [
   { name: "Large industrial warehouse (W40 x L60 m)", w: 40, l: 60 },
   { name: "Distribution centre (W60 x L100 m)", w: 60, l: 100 },
 ];
+
+// ---------------------------------------------------------------------------
+// Building type -- which part of AS/NZS 1170.2:2021 the structure falls under.
+// Only "enclosed" (Section 5, rectangular enclosed buildings) is actually
+// calculated by this tool -- see the README/scope disclaimer. The others are
+// listed so the type can be recorded and the user pointed at the right
+// Appendix, without this tool pretending to calculate pressures it doesn't
+// have verified data for.
+// ---------------------------------------------------------------------------
+const BUILDING_TYPES = [
+  { id: "enclosed", label: "Enclosed rectangular building", clause: "Section 5", supported: true },
+  { id: "bins", label: "Circular bins, silos and tanks", clause: "Appendix A", supported: false },
+  { id: "freestanding", label: "Freestanding walls, hoardings, canopies and roofs", clause: "Appendix B", supported: false },
+  { id: "members", label: "Exposed structural members, frames and lattice towers", clause: "Appendix C", supported: false },
+  { id: "flags", label: "Flags and circular shapes", clause: "Appendix D", supported: false },
+];
+
+// ---------------------------------------------------------------------------
+// Building importance level -- NCC / AS/NZS 1170.0 concept, not part of
+// AS/NZS 1170.2 itself. AS/NZS 1170.2 only supplies wind speeds for given
+// average recurrence intervals (Section 3); it is AS/NZS 1170.0 (via the NCC)
+// that assigns an importance level to a structure and, from that, the annual
+// probability of exceedance (R) to design for.
+//
+// The R values below are the commonly-published ULS defaults for a 50-year
+// design working life (AS/NZS 1170.0 Table 3.3 / NCC Table B1.2a lineage).
+// They are NOT read from a specific NCC edition in this session -- treat them
+// as a starting point only. Confirm: (a) the correct importance level for the
+// actual building against the current NCC's classification criteria, (b) the
+// R value against the current NCC/AS 1170.0 edition, especially if the
+// design working life is not 50 years, and (c) that a separate, shorter R is
+// used for serviceability limit state design (commonly R=20-25 years) --
+// this selector only addresses the ULS value used elsewhere in this tool.
+// ---------------------------------------------------------------------------
+const IMPORTANCE_LEVELS = [
+  { id: "IL1", label: "IL1 — low consequence of failure (e.g. minor/isolated, low-occupancy structures)", ariUls: 100 },
+  { id: "IL2", label: "IL2 — normal structures (most buildings)", ariUls: 500 },
+  { id: "IL3", label: "IL3 — higher consequence of failure (e.g. large assembly buildings)", ariUls: 1000 },
+  { id: "IL4", label: "IL4 — post-disaster / essential structures (e.g. hospitals, emergency services)", ariUls: 2000 },
+];
