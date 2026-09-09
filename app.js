@@ -191,6 +191,65 @@ function computeMtFromForm(regionKey) {
   return { ...mt, mh };
 }
 
+const WINDROSE_CENTER = 120;
+const WINDROSE_MAX_R = 80;
+const WINDROSE_MIN_R = 20;
+const WINDROSE_LABEL_GAP = 15;
+
+// Builds a small radar-style diagram: one spoke per cardinal direction, length
+// proportional to that direction's Vsit,beta (floored so low values stay legible,
+// not scaled from a true zero -- the numeric label at each vertex is the exact
+// value; the shape is a supporting "at a glance" view of directionality only.
+function buildWindRoseSvg(perDirection) {
+  const maxVsit = Math.max(...perDirection.map((d) => d.Vsit));
+  const maxIndex = perDirection.reduce((best, d, i, arr) => (d.Vsit > arr[best].Vsit ? i : best), 0);
+
+  const points = perDirection.map((d, i) => {
+    const r = maxVsit > 0 ? WINDROSE_MIN_R + (d.Vsit / maxVsit) * (WINDROSE_MAX_R - WINDROSE_MIN_R) : WINDROSE_MIN_R;
+    const rad = (d.angle * Math.PI) / 180;
+    const x = WINDROSE_CENTER + r * Math.sin(rad);
+    const y = WINDROSE_CENTER - r * Math.cos(rad);
+    return { ...d, x, y, r, isMax: i === maxIndex };
+  });
+
+  const polygonPoints = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+
+  const dots = points
+    .map((p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.isMax ? 5 : 3.5}" class="${p.isMax ? "windrose-dot-max" : "windrose-dot"}" />`)
+    .join("");
+
+  const labels = points
+    .map((p) => {
+      const labelR = p.r + WINDROSE_LABEL_GAP;
+      const rad = (p.angle * Math.PI) / 180;
+      const lx = WINDROSE_CENTER + labelR * Math.sin(rad);
+      const ly = WINDROSE_CENTER - labelR * Math.cos(rad);
+      return `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" class="${p.isMax ? "windrose-label-max" : "windrose-label"}">${fmt(p.Vsit, 1)}</text>`;
+    })
+    .join("");
+
+  return `
+    <svg viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Site wind speed by cardinal direction">
+      <circle cx="120" cy="120" r="102" class="compass-ring" />
+      <g class="compass-ticks">
+        <line x1="120" y1="18" x2="120" y2="30" />
+        <line x1="222" y1="120" x2="210" y2="120" />
+        <line x1="120" y1="222" x2="120" y2="210" />
+        <line x1="18" y1="120" x2="30" y2="120" />
+      </g>
+      <g class="compass-labels">
+        <text x="120" y="14" text-anchor="middle">N</text>
+        <text x="230" y="125" text-anchor="middle">E</text>
+        <text x="120" y="236" text-anchor="middle">S</text>
+        <text x="10" y="125" text-anchor="middle">W</text>
+      </g>
+      <polygon points="${polygonPoints}" class="windrose-polygon" />
+      ${dots}
+      ${labels}
+    </svg>
+  `;
+}
+
 function renderSpeedResults(data) {
   const { region, R, terrainCategory, z, siteResult, designResults, mt } = data;
   const el = $("speedResults");
@@ -223,6 +282,12 @@ function renderSpeedResults(data) {
     <h3>Multipliers used</h3>
     <div>${multRow}</div>
     ${warnings}
+    <h3>Wind speed by direction</h3>
+    <div class="windrose-wrap">
+      ${buildWindRoseSvg(siteResult.perDirection)}
+      <p class="hint">Spoke length shows relative V<sub>sit,β</sub> magnitude across directions (floored, not to scale from zero) &mdash;
+        the number at each vertex is the exact value; the highlighted vertex is the governing (maximum) direction.</p>
+    </div>
     <h3>Site wind speed, V<sub>sit,β</sub> <span class="ref">(Equation 2.2)</span></h3>
     <table>
       <thead><tr><th>Direction</th><th class="num">Bearing</th><th class="num">M<sub>d</sub></th><th class="num">V<sub>sit,β</sub> (m/s)</th></tr></thead>
