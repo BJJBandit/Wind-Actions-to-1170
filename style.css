@@ -295,6 +295,18 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   stroke-width: 1.5;
 }
 
+.compass-dim-line,
+.compass-dim-tick {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.compass-dim-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .compass-theta-label {
   fill: var(--accent-dark);
   font-size: 12px;

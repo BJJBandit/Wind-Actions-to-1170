@@ -125,6 +125,20 @@
           <line id="latticeCross2" class="compass-lattice" style="display:none" />
           <text id="theta0Label" class="compass-theta-label" text-anchor="middle">θ = 0°</text>
           <text id="theta90Label" class="compass-theta-label" text-anchor="middle">θ = 90°</text>
+          <!-- Dimension lines: dimW = primary size (W for rect/wall/lattice, diameter for circles),
+               dimL = secondary size (L, rect/lattice only -- hidden for wall/circle glyphs). -->
+          <g id="dimW">
+            <line id="dimWLine" class="compass-dim-line" />
+            <line id="dimWTick1" class="compass-dim-tick" />
+            <line id="dimWTick2" class="compass-dim-tick" />
+            <text id="dimWLabel" class="compass-dim-label" text-anchor="middle"></text>
+          </g>
+          <g id="dimL">
+            <line id="dimLLine" class="compass-dim-line" />
+            <line id="dimLTick1" class="compass-dim-tick" />
+            <line id="dimLTick2" class="compass-dim-tick" />
+            <text id="dimLLabel" class="compass-dim-label" text-anchor="start"></text>
+          </g>
         </g>
       </svg>
       <p class="hint">Drag the compass (or use the dropdown above) to set the building's bearing. θ = 0° is the face used as the origin for the design wind speed table below (Clause 2.3: the governing speed in the sector ±45° either side); the shape at centre reflects the selected building type and, where applicable, the plan dimensions (W × L) entered above. Circular shapes have no orthogonal faces, so the θ axes and ±45° sectors are hidden for those types.</p>

@@ -512,7 +512,7 @@ function renderPressureResults() {
 
 const COMPASS_CX = 210;
 const COMPASS_CY = 190;
-const COMPASS_MAX_HALF_SPAN = 55; // keep the rectangle comfortably inside the axis lines (radius 88)
+const COMPASS_MAX_HALF_SPAN = 46; // leaves room between the glyph and the axis lines (radius 88) for dimensioning
 const COMPASS_AXIS_R = 88; // half-length of the theta=0/90 axis lines
 const COMPASS_ARC_MIN_R = 40;
 const COMPASS_ARC_MAX_R = 78;
@@ -552,6 +552,28 @@ function arcPath(fromDeg, toDeg, r) {
   const p1 = compassPoint(fromDeg, r);
   const p2 = compassPoint(toDeg, r);
   return `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A ${r} ${r} 0 0 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+}
+
+const DIM_TICK_HALF = 4; // half-length of the little perpendicular tick at each end of a dimension line
+
+// Draws a dimension line from p1 to p2 (both in the building-axis local frame) with a small
+// perpendicular tick at each end and a label at `labelPos`, counter-rotated to stay upright.
+function setDimensionLine(ids, p1, p2, labelPos, labelText, azimuth) {
+  setLine($(ids.line), p1, p2);
+
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = (-dy / len) * DIM_TICK_HALF;
+  const py = (dx / len) * DIM_TICK_HALF;
+  setLine($(ids.tick1), { x: p1.x - px, y: p1.y - py }, { x: p1.x + px, y: p1.y + py });
+  setLine($(ids.tick2), { x: p2.x - px, y: p2.y - py }, { x: p2.x + px, y: p2.y + py });
+
+  const label = $(ids.label);
+  label.textContent = labelText;
+  label.setAttribute("x", labelPos.x.toFixed(1));
+  label.setAttribute("y", labelPos.y.toFixed(1));
+  label.setAttribute("transform", `rotate(${-azimuth} ${labelPos.x.toFixed(1)} ${labelPos.y.toFixed(1)})`);
 }
 
 function renderCompass() {
@@ -607,6 +629,47 @@ function renderCompass() {
   }
 
   $("buildingGroup").setAttribute("transform", `rotate(${azimuth} ${COMPASS_CX} ${COMPASS_CY})`);
+
+  // Dimension lines: dimW is always shown (W for rect/wall/lattice, diameter for circles); dimL
+  // only where a second, independent dimension actually exists (rect/lattice -- a wall's depth is
+  // a fixed symbolic thickness, not the real L value, and a circle only has one dimension).
+  const dimGap = 7;
+  if (type.glyph === "circle") {
+    setDimensionLine(
+      { line: "dimWLine", tick1: "dimWTick1", tick2: "dimWTick2", label: "dimWLabel" },
+      { x: COMPASS_CX - halfB, y: COMPASS_CY },
+      { x: COMPASS_CX + halfB, y: COMPASS_CY },
+      { x: COMPASS_CX, y: COMPASS_CY - dimGap },
+      `⌀ = ${fmt(b, 1)} m`,
+      azimuth
+    );
+    setHidden($("dimL"), true);
+  } else {
+    setDimensionLine(
+      { line: "dimWLine", tick1: "dimWTick1", tick2: "dimWTick2", label: "dimWLabel" },
+      { x: COMPASS_CX - halfB, y: COMPASS_CY - halfD - dimGap },
+      { x: COMPASS_CX + halfB, y: COMPASS_CY - halfD - dimGap },
+      { x: COMPASS_CX, y: COMPASS_CY - halfD - dimGap - 5 },
+      `W = ${fmt(b, 1)} m`,
+      azimuth
+    );
+    if (type.glyph === "wall") {
+      setHidden($("dimL"), true);
+    } else {
+      // Label sits just above the top end of the line (not centred on it) -- centred would put it
+      // on the same local-angle-90 ray, and at the same height, as theta90Label further out.
+      setDimensionLine(
+        { line: "dimLLine", tick1: "dimLTick1", tick2: "dimLTick2", label: "dimLLabel" },
+        { x: COMPASS_CX + halfB + dimGap, y: COMPASS_CY - halfD },
+        { x: COMPASS_CX + halfB + dimGap, y: COMPASS_CY + halfD },
+        { x: COMPASS_CX + halfB + dimGap + 4, y: COMPASS_CY - halfD - 4 },
+        `L = ${fmt(d, 1)} m`,
+        azimuth
+      );
+      setHidden($("dimL"), false);
+    }
+  }
+  setHidden($("dimW"), false);
 
   // Orthogonal-axis furniture (theta=0/90 dashed axes, +-45 deg sector arcs, and the matching
   // callout) only makes sense for a shape with discrete faces -- hide it for circular shapes.
