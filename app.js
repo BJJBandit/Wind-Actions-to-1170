@@ -443,8 +443,42 @@ function renderPressureResults() {
 // azimuth and allows dragging it directly to set that azimuth.
 // ---------------------------------------------------------------------------
 
-const COMPASS_CENTER = 120;
-const COMPASS_MAX_HALF_SPAN = 62; // keep the rectangle within the inner dashed ring
+const COMPASS_CX = 210;
+const COMPASS_CY = 190;
+const COMPASS_MAX_HALF_SPAN = 55; // keep the rectangle comfortably inside the axis lines (radius 88)
+const COMPASS_AXIS_R = 88; // half-length of the theta=0/90 axis lines
+const COMPASS_ARC_MIN_R = 40;
+const COMPASS_ARC_MAX_R = 78;
+
+// (x, y) at `radius` from the compass centre, at `angleDeg` measured clockwise from
+// local "up" (0 deg) -- the same bearing convention used for true North elsewhere.
+function compassPoint(angleDeg, radius) {
+  const rad = (angleDeg * Math.PI) / 180;
+  return { x: COMPASS_CX + radius * Math.sin(rad), y: COMPASS_CY - radius * Math.cos(rad) };
+}
+
+function setLine(el, p1, p2) {
+  el.setAttribute("x1", p1.x.toFixed(1));
+  el.setAttribute("y1", p1.y.toFixed(1));
+  el.setAttribute("x2", p2.x.toFixed(1));
+  el.setAttribute("y2", p2.y.toFixed(1));
+}
+
+// Places a label at (angleDeg, radius) in the rotating (building-axis) frame, then
+// counter-rotates it by -azimuth about its own position so it always reads upright.
+function placeRotatingLabel(el, angleDeg, radius, azimuth) {
+  const p = compassPoint(angleDeg, radius);
+  el.setAttribute("x", p.x.toFixed(1));
+  el.setAttribute("y", p.y.toFixed(1));
+  el.setAttribute("transform", `rotate(${-azimuth} ${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+}
+
+// A minor arc (<=45 deg) between two angles (deg, clockwise from local "up"), at `r`.
+function arcPath(fromDeg, toDeg, r) {
+  const p1 = compassPoint(fromDeg, r);
+  const p2 = compassPoint(toDeg, r);
+  return `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A ${r} ${r} 0 0 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+}
 
 function renderCompass() {
   const azimuth = parseFloat($("azimuth").value) || 0;
@@ -453,29 +487,31 @@ function renderCompass() {
 
   const longest = Math.max(b, d, 0.1);
   const scale = COMPASS_MAX_HALF_SPAN / (longest / 2);
-  const halfB = Math.max(10, (b * scale) / 2);
-  const halfD = Math.max(10, (d * scale) / 2);
+  const halfB = Math.max(9, (b * scale) / 2);
+  const halfD = Math.max(9, (d * scale) / 2);
 
   const rect = $("buildingRect");
-  rect.setAttribute("x", COMPASS_CENTER - halfB);
-  rect.setAttribute("y", COMPASS_CENTER - halfD);
-  rect.setAttribute("width", halfB * 2);
-  rect.setAttribute("height", halfD * 2);
+  rect.setAttribute("x", (COMPASS_CX - halfB).toFixed(1));
+  rect.setAttribute("y", (COMPASS_CY - halfD).toFixed(1));
+  rect.setAttribute("width", (halfB * 2).toFixed(1));
+  rect.setAttribute("height", (halfD * 2).toFixed(1));
 
-  $("buildingGroup").setAttribute("transform", `rotate(${azimuth} ${COMPASS_CENTER} ${COMPASS_CENTER})`);
+  $("buildingGroup").setAttribute("transform", `rotate(${azimuth} ${COMPASS_CX} ${COMPASS_CY})`);
 
-  const arrowTipY = COMPASS_CENTER - halfD - 16;
-  const arrow = $("theta0Arrow");
-  arrow.setAttribute("x1", COMPASS_CENTER);
-  arrow.setAttribute("y1", COMPASS_CENTER - halfD);
-  arrow.setAttribute("x2", COMPASS_CENTER);
-  arrow.setAttribute("y2", arrowTipY);
+  // theta=0 / theta=90 dashed axes through the building, each a full diameter (2 x COMPASS_AXIS_R)
+  setLine($("axisTheta0"), compassPoint(180, COMPASS_AXIS_R), compassPoint(0, COMPASS_AXIS_R));
+  setLine($("axisTheta90"), compassPoint(270, COMPASS_AXIS_R), compassPoint(90, COMPASS_AXIS_R));
 
-  const label = $("theta0Label");
-  label.setAttribute("x", COMPASS_CENTER);
-  label.setAttribute("y", arrowTipY - 6);
-  // counter-rotate the label so it always reads upright regardless of building rotation
-  label.setAttribute("transform", `rotate(${-azimuth} ${COMPASS_CENTER} ${arrowTipY - 6})`);
+  placeRotatingLabel($("theta0Label"), 0, COMPASS_AXIS_R + 14, azimuth);
+  placeRotatingLabel($("theta90Label"), 90, COMPASS_AXIS_R + 16, azimuth);
+
+  // +-45 deg sector arcs either side of theta=0 (Clause 2.3), radius scaled to clear the rectangle
+  const halfDiagonal = Math.sqrt(halfB * halfB + halfD * halfD);
+  const arcR = Math.min(COMPASS_ARC_MAX_R, Math.max(COMPASS_ARC_MIN_R, halfDiagonal + 12));
+  $("arcLeft").setAttribute("d", arcPath(-45, 0, arcR));
+  $("arcRight").setAttribute("d", arcPath(0, 45, arcR));
+  placeRotatingLabel($("arcLeftLabel"), -22.5, arcR + 13, azimuth);
+  placeRotatingLabel($("arcRightLabel"), 22.5, arcR + 13, azimuth);
 }
 
 function setAzimuthFromCompassEvent(evt) {
@@ -486,8 +522,8 @@ function setAzimuthFromCompassEvent(evt) {
   const ctm = svg.getScreenCTM();
   if (!ctm) return;
   const local = pt.matrixTransform(ctm.inverse());
-  const dx = local.x - COMPASS_CENTER;
-  const dy = local.y - COMPASS_CENTER;
+  const dx = local.x - COMPASS_CX;
+  const dy = local.y - COMPASS_CY;
   if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return; // ignore clicks dead-centre
   let bearing = (Math.atan2(dx, -dy) * 180) / Math.PI;
   bearing = ((Math.round(bearing / 5) * 5) % 360 + 360) % 360;

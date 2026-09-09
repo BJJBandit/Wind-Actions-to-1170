@@ -284,19 +284,56 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   stroke-width: 2;
 }
 
-.compass-theta-arrow {
-  stroke: var(--accent-dark);
-  stroke-width: 2.5;
-}
-
-.compass-arrowhead {
-  fill: var(--accent-dark);
-}
-
 .compass-theta-label {
   fill: var(--accent-dark);
   font-size: 12px;
   font-weight: 700;
+}
+
+.orient-spokes line {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.orient-spoke-labels text {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.orient-spoke-labels tspan:last-child {
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--text-muted);
+}
+
+.orient-callout line {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.orient-callout text {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.orient-axis {
+  stroke: var(--accent-dark);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.orient-arc {
+  fill: none;
+  stroke: var(--accent-dark);
+  stroke-width: 1.5;
+}
+
+.orient-arc-label {
+  fill: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .windrose-wrap {
