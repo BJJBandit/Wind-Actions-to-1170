@@ -104,11 +104,11 @@
           <text x="82.0" y="186.0" text-anchor="end"><tspan x="82.0">W</tspan><tspan x="82.0" dy="14">β = 270°</tspan></text>
           <text x="119.5" y="95.5" text-anchor="end"><tspan x="119.5">NW</tspan><tspan x="119.5" dy="14">β = 315°</tspan></text>
         </g>
-        <g class="orient-callout">
+        <g class="orient-callout" id="calloutCardinal">
           <line x1="150" y1="34" x2="203" y2="66" />
           <text x="14" y="30" text-anchor="start">Cardinal directions</text>
         </g>
-        <g class="orient-callout">
+        <g class="orient-callout" id="calloutAxes">
           <line x1="170" y1="318" x2="196" y2="254" />
           <text x="14" y="330" text-anchor="start">Building orthogonal axes</text>
         </g>
@@ -120,11 +120,14 @@
           <text id="arcLeftLabel" class="orient-arc-label" text-anchor="middle">45°</text>
           <text id="arcRightLabel" class="orient-arc-label" text-anchor="middle">45°</text>
           <rect id="buildingRect" class="compass-building" rx="2" />
+          <circle id="buildingCircle" class="compass-building" style="display:none" />
+          <line id="latticeCross1" class="compass-lattice" style="display:none" />
+          <line id="latticeCross2" class="compass-lattice" style="display:none" />
           <text id="theta0Label" class="compass-theta-label" text-anchor="middle">θ = 0°</text>
           <text id="theta90Label" class="compass-theta-label" text-anchor="middle">θ = 90°</text>
         </g>
       </svg>
-      <p class="hint">Drag the compass (or use the dropdown above) to set the building's bearing. θ = 0° is the face used as the origin for the design wind speed table below (Clause 2.3: the governing speed in the sector ±45° either side); the rectangle reflects the plan dimensions (W × L) entered above.</p>
+      <p class="hint">Drag the compass (or use the dropdown above) to set the building's bearing. θ = 0° is the face used as the origin for the design wind speed table below (Clause 2.3: the governing speed in the sector ±45° either side); the shape at centre reflects the selected building type and, where applicable, the plan dimensions (W × L) entered above. Circular shapes have no orthogonal faces, so the θ axes and ±45° sectors are hidden for those types.</p>
     </div>
   </section>
 

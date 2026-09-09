@@ -290,6 +290,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   stroke-width: 2;
 }
 
+.compass-lattice {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
 .compass-theta-label {
   fill: var(--accent-dark);
   font-size: 12px;

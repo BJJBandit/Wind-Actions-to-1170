@@ -291,12 +291,17 @@ const BUILDING_SIZES = [
 // Appendix, without this tool pretending to calculate pressures it doesn't
 // have verified data for.
 // ---------------------------------------------------------------------------
+// `glyph` and `hasAxes` describe the compass diagram only (Section 1): `glyph` picks which
+// footprint shape is drawn (a rectangle only makes sense for a boxy building; a circular tank
+// or a flag doesn't have "width x length" in the same sense), and `hasAxes` says whether the
+// theta=0/90 orthogonal-axis lines and +-45 deg sector arcs are meaningful for that shape --
+// they describe a building's discrete faces (Clause 2.3), which a circular plan doesn't have.
 const BUILDING_TYPES = [
-  { id: "enclosed", label: "Enclosed rectangular building", clause: "Section 5", supported: true },
-  { id: "bins", label: "Circular bins, silos and tanks", clause: "Appendix A", supported: false },
-  { id: "freestanding", label: "Freestanding walls, hoardings, canopies and roofs", clause: "Appendix B", supported: false },
-  { id: "members", label: "Exposed structural members, frames and lattice towers", clause: "Appendix C", supported: false },
-  { id: "flags", label: "Flags and circular shapes", clause: "Appendix D", supported: false },
+  { id: "enclosed", label: "Enclosed rectangular building", clause: "Section 5", supported: true, glyph: "rect", hasAxes: true },
+  { id: "bins", label: "Circular bins, silos and tanks", clause: "Appendix A", supported: false, glyph: "circle", hasAxes: false },
+  { id: "freestanding", label: "Freestanding walls, hoardings, canopies and roofs", clause: "Appendix B", supported: false, glyph: "wall", hasAxes: true },
+  { id: "members", label: "Exposed structural members, frames and lattice towers", clause: "Appendix C", supported: false, glyph: "lattice", hasAxes: true },
+  { id: "flags", label: "Flags and circular shapes", clause: "Appendix D", supported: false, glyph: "circle", hasAxes: false },
 ];
 
 // ---------------------------------------------------------------------------

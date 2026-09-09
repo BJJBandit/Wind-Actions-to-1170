@@ -524,6 +524,13 @@ function compassPoint(angleDeg, radius) {
   return { x: COMPASS_CX + radius * Math.sin(rad), y: COMPASS_CY - radius * Math.cos(rad) };
 }
 
+// Neither the `.hidden` IDL property nor the `[hidden]` UA stylesheet rule can be relied on for
+// SVG elements across browsers (some render a `hidden`-attributed SVG shape anyway) -- set the
+// inline `display` style directly, which every SVG renderer honours unambiguously.
+function setHidden(el, hide) {
+  el.style.display = hide ? "none" : "";
+}
+
 function setLine(el, p1, p2) {
   el.setAttribute("x1", p1.x.toFixed(1));
   el.setAttribute("y1", p1.y.toFixed(1));
@@ -551,19 +558,63 @@ function renderCompass() {
   const azimuth = parseFloat($("azimuth").value) || 0;
   const b = parseFloat($("bldB")?.value) || 20;
   const d = parseFloat($("bldD")?.value) || 15;
+  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType")?.value) || BUILDING_TYPES[0];
 
-  const longest = Math.max(b, d, 0.1);
-  const scale = COMPASS_MAX_HALF_SPAN / (longest / 2);
-  const halfB = Math.max(9, (b * scale) / 2);
-  const halfD = Math.max(9, (d * scale) / 2);
+  const rectEl = $("buildingRect");
+  const circleEl = $("buildingCircle");
+  const lattice1 = $("latticeCross1");
+  const lattice2 = $("latticeCross2");
 
-  const rect = $("buildingRect");
-  rect.setAttribute("x", (COMPASS_CX - halfB).toFixed(1));
-  rect.setAttribute("y", (COMPASS_CY - halfD).toFixed(1));
-  rect.setAttribute("width", (halfB * 2).toFixed(1));
-  rect.setAttribute("height", (halfD * 2).toFixed(1));
+  let halfB, halfD; // half-extents of whatever's drawn, used below to size the +-45 deg arcs
+
+  if (type.glyph === "circle") {
+    // Circular bins/silos/tanks, flags and other circular shapes -- diameter from W, L unused.
+    const radius = Math.max(9, Math.min(COMPASS_MAX_HALF_SPAN, (b / 2) * (COMPASS_MAX_HALF_SPAN / 10)));
+    circleEl.setAttribute("cx", COMPASS_CX.toFixed(1));
+    circleEl.setAttribute("cy", COMPASS_CY.toFixed(1));
+    circleEl.setAttribute("r", radius.toFixed(1));
+    setHidden(circleEl, false);
+    setHidden(rectEl, true);
+    setHidden(lattice1, true);
+    setHidden(lattice2, true);
+    halfB = halfD = radius;
+  } else {
+    // Rectangle-based glyphs: "rect" (enclosed building, W x L), "wall" (freestanding wall/hoarding --
+    // long and thin, thickness fixed regardless of L), "lattice" (exposed members/lattice tower -- W x L
+    // rectangle with a cross-brace to distinguish it from a plain enclosed building).
+    const thickness = type.glyph === "wall" ? 9 : null; // fixed half-thickness for a wall glyph
+    const longest = Math.max(b, d, 0.1);
+    const scale = COMPASS_MAX_HALF_SPAN / (longest / 2);
+    halfB = Math.max(9, (b * scale) / 2);
+    halfD = thickness !== null ? thickness : Math.max(9, (d * scale) / 2);
+
+    rectEl.setAttribute("x", (COMPASS_CX - halfB).toFixed(1));
+    rectEl.setAttribute("y", (COMPASS_CY - halfD).toFixed(1));
+    rectEl.setAttribute("width", (halfB * 2).toFixed(1));
+    rectEl.setAttribute("height", (halfD * 2).toFixed(1));
+    setHidden(rectEl, false);
+    setHidden(circleEl, true);
+
+    if (type.glyph === "lattice") {
+      setLine(lattice1, { x: COMPASS_CX - halfB, y: COMPASS_CY - halfD }, { x: COMPASS_CX + halfB, y: COMPASS_CY + halfD });
+      setLine(lattice2, { x: COMPASS_CX - halfB, y: COMPASS_CY + halfD }, { x: COMPASS_CX + halfB, y: COMPASS_CY - halfD });
+      setHidden(lattice1, false);
+      setHidden(lattice2, false);
+    } else {
+      setHidden(lattice1, true);
+      setHidden(lattice2, true);
+    }
+  }
 
   $("buildingGroup").setAttribute("transform", `rotate(${azimuth} ${COMPASS_CX} ${COMPASS_CY})`);
+
+  // Orthogonal-axis furniture (theta=0/90 dashed axes, +-45 deg sector arcs, and the matching
+  // callout) only makes sense for a shape with discrete faces -- hide it for circular shapes.
+  const axisEls = [$("axisTheta0"), $("axisTheta90"), $("arcLeft"), $("arcRight"), $("arcLeftLabel"), $("arcRightLabel"), $("theta0Label"), $("theta90Label")];
+  axisEls.forEach((el) => setHidden(el, !type.hasAxes));
+  setHidden($("calloutAxes"), !type.hasAxes);
+
+  if (!type.hasAxes) return;
 
   // theta=0 / theta=90 dashed axes through the building, each a full diameter (2 x COMPASS_AXIS_R)
   setLine($("axisTheta0"), compassPoint(180, COMPASS_AXIS_R), compassPoint(0, COMPASS_AXIS_R));
@@ -572,7 +623,7 @@ function renderCompass() {
   placeRotatingLabel($("theta0Label"), 0, COMPASS_AXIS_R + 14, azimuth);
   placeRotatingLabel($("theta90Label"), 90, COMPASS_AXIS_R + 16, azimuth);
 
-  // +-45 deg sector arcs either side of theta=0 (Clause 2.3), radius scaled to clear the rectangle
+  // +-45 deg sector arcs either side of theta=0 (Clause 2.3), radius scaled to clear the glyph
   const halfDiagonal = Math.sqrt(halfB * halfB + halfD * halfD);
   const arcR = Math.min(COMPASS_ARC_MAX_R, Math.max(COMPASS_ARC_MIN_R, halfDiagonal + 12));
   $("arcLeft").setAttribute("d", arcPath(-45, 0, arcR));
@@ -633,6 +684,7 @@ function wireCompass() {
   $("azimuth").addEventListener("change", renderCompass);
   $("bldB")?.addEventListener("input", renderCompass);
   $("bldD")?.addEventListener("input", renderCompass);
+  $("buildingType")?.addEventListener("change", renderCompass);
 }
 
 // ---------------------------------------------------------------------------
