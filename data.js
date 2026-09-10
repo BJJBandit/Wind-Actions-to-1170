@@ -153,6 +153,15 @@ const CPE_LEEWARD_THETA0_PITCH25 = { db: [0.1, 0.3], cpe: [-0.75, -0.5] };
 // theta = 90 deg (wind parallel to ridge), gable roof, any pitch: same as low-pitch d/b table above
 const CPE_LEEWARD_THETA90 = CPE_LEEWARD_THETA0_LOWPITCH;
 
+// Roof type -- Table 5.2(B) distinguishes "hip or gable" (theta=0) from "gable" (theta=90), with
+// Note 3: for hip roofs use the theta=0 values even at theta=90. Table 5.3(A) covers "gable roofs"
+// and "monoslope roofs" for pitch < 10 deg. Monoslope has no ridge.
+const ROOF_TYPES = [
+  { id: "gable", label: "Gable" },
+  { id: "hip", label: "Hip" },
+  { id: "monoslope", label: "Monoslope / skillion" },
+];
+
 // Table 5.2(C) -- Side wall Cp,e by horizontal distance from windward edge (in multiples of h)
 const CPE_SIDEWALL_ZONES = [
   { from: 0, to: 1, cpe: -0.65, label: "0 to 1h from windward edge" },

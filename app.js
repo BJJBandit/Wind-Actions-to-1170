@@ -171,6 +171,17 @@ function populateBuildingSizes() {
   });
 }
 
+function populateRoofTypes() {
+  const sel = $("roofType");
+  ROOF_TYPES.forEach((r) => {
+    const opt = document.createElement("option");
+    opt.value = r.id;
+    opt.textContent = r.label;
+    sel.appendChild(opt);
+  });
+  sel.value = "gable";
+}
+
 function populateAri() {
   const sel = $("ari");
   VR_STANDARD_R.forEach((R) => {
@@ -402,14 +413,17 @@ function renderPressureResults() {
   const h = parseFloat($("bldH").value) || 1;
   const pitch = parseFloat($("roofPitch").value) || 0;
   const theta = parseInt($("windTheta").value, 10);
+  const roofType = $("roofType").value || "gable";
   const db = d / b;
   const hd = h / d;
 
   const cpiCase = CPI_CASES.find((c) => c.id === $("cpiCase").value);
   const cpeWw = cpeWindwardWall(h);
-  const cpeLw = cpeLeewardWall({ theta, pitch, db });
-  const leewardTableMinDb = theta === 90 || pitch < 10 ? 1 : pitch >= 25 ? 0.1 : null;
-  const leewardTableMaxDb = theta === 90 || pitch < 10 ? 4 : pitch >= 25 ? 0.3 : null;
+  const cpeLw = cpeLeewardWall({ theta, pitch, db, roofType });
+  // For a hip roof, Table 5.2(B) Note 3 sends the leeward wall to the theta=0 branch even at theta=90.
+  const leewardUsesTheta0 = theta === 0 || roofType === "hip";
+  const leewardTableMinDb = !leewardUsesTheta0 || pitch < 10 ? 1 : pitch >= 25 ? 0.1 : null;
+  const leewardTableMaxDb = !leewardUsesTheta0 || pitch < 10 ? 4 : pitch >= 25 ? 0.3 : null;
   const dbOutOfRange = leewardTableMinDb !== null && (db < leewardTableMinDb || db > leewardTableMaxDb);
 
   let cpiValues;
@@ -478,12 +492,26 @@ function renderPressureResults() {
       p = 0.5 &times; 1.2 &times; V<sub>des,θ</sub>&sup2; &times; C<sub>p,e</sub> &times; C<sub>dyn</sub> manually.</div>`;
   }
 
+  let roofTypeNote = "";
+  if (roofType === "hip") {
+    roofTypeNote = `<div class="note"><strong>Hip roof:</strong> the leeward wall C<sub>p,e</sub> uses the θ&nbsp;=&nbsp;0° values at
+      every wind direction (Table 5.2(B), Note 3). For pitch ≥ 10°, the hip-end (R) roof slopes are covered by
+      Table 5.3(C), which is not calculated here.</div>`;
+  } else if (roofType === "monoslope") {
+    roofTypeNote = `<div class="note"><strong>Monoslope / skillion roof:</strong> there is no ridge &mdash; "θ = 0°" means wind up or
+      down the slope and "θ = 90°" means wind across it. For pitch &lt; 10° the roof C<sub>p,e</sub> values from Table 5.3(A) shown
+      below apply to the single slope; Table 5.2(B) does not tabulate a monoslope leeward wall, so the gable value is used as an
+      approximation &mdash; confirm against the Standard.</div>`;
+  }
+
   el.innerHTML = `
     <div class="pill">d/b = ${fmt(db, 2)}</div>
     <div class="pill">h/d = ${fmt(hd, 2)}</div>
+    <div class="pill">Roof: ${ROOF_TYPES.find((r) => r.id === roofType)?.label || roofType}</div>
     <div class="pill">C<sub>p,i</sub> case: ${cpiLabel}</div>
     ${dbNote}
     ${pitchNote}
+    ${roofTypeNote}
     <h3>Wall pressures <span class="ref">(Tables 5.2(A)&ndash;(C))</span></h3>
     <table>
       <thead><tr><th>Surface</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
@@ -582,6 +610,7 @@ function renderCompass() {
   const d = parseFloat($("bldD")?.value) || 15;
   const type = BUILDING_TYPES.find((t) => t.id === $("buildingType")?.value) || BUILDING_TYPES[0];
 
+  const roofType = $("roofType")?.value || "gable";
   const rectEl = $("buildingRect");
   const circleEl = $("buildingCircle");
   const lattice1 = $("latticeCross1");
@@ -625,6 +654,26 @@ function renderCompass() {
     } else {
       setHidden(lattice1, true);
       setHidden(lattice2, true);
+    }
+  }
+
+  // Roof ridge / hip lines -- only meaningful on the plain enclosed-building rectangle. The ridge
+  // runs parallel to W (across the theta=0 wind); a hip roof also gets lines to the four corners;
+  // a monoslope has no ridge at all.
+  const ridgeIds = ["roofRidge", "roofHip1", "roofHip2", "roofHip3", "roofHip4"];
+  ridgeIds.forEach((id) => setHidden($(id), true));
+  if (type.glyph === "rect" && roofType !== "monoslope") {
+    if (roofType === "gable") {
+      setLine($("roofRidge"), { x: COMPASS_CX - halfB, y: COMPASS_CY }, { x: COMPASS_CX + halfB, y: COMPASS_CY });
+      setHidden($("roofRidge"), false);
+    } else if (roofType === "hip") {
+      const ridgeHalf = Math.max(0, halfB - halfD);
+      setLine($("roofRidge"), { x: COMPASS_CX - ridgeHalf, y: COMPASS_CY }, { x: COMPASS_CX + ridgeHalf, y: COMPASS_CY });
+      setLine($("roofHip1"), { x: COMPASS_CX - ridgeHalf, y: COMPASS_CY }, { x: COMPASS_CX - halfB, y: COMPASS_CY - halfD });
+      setLine($("roofHip2"), { x: COMPASS_CX - ridgeHalf, y: COMPASS_CY }, { x: COMPASS_CX - halfB, y: COMPASS_CY + halfD });
+      setLine($("roofHip3"), { x: COMPASS_CX + ridgeHalf, y: COMPASS_CY }, { x: COMPASS_CX + halfB, y: COMPASS_CY - halfD });
+      setLine($("roofHip4"), { x: COMPASS_CX + ridgeHalf, y: COMPASS_CY }, { x: COMPASS_CX + halfB, y: COMPASS_CY + halfD });
+      ridgeIds.forEach((id) => setHidden($(id), false));
     }
   }
 
@@ -748,6 +797,7 @@ function wireCompass() {
   $("bldB")?.addEventListener("input", renderCompass);
   $("bldD")?.addEventListener("input", renderCompass);
   $("buildingType")?.addEventListener("change", renderCompass);
+  $("roofType")?.addEventListener("change", renderCompass);
 }
 
 // ---------------------------------------------------------------------------
@@ -760,6 +810,7 @@ document.addEventListener("DOMContentLoaded", () => {
   populateAzimuth();
   populateBuildingTypes();
   populateImportanceLevels();
+  populateRoofTypes();
   populateBuildingSizes();
   populateAri();
   populateCpiCases();

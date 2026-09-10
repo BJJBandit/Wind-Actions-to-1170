@@ -64,6 +64,10 @@
         <input type="number" id="bldH" min="0.1" step="0.1" value="10" />
       </div>
       <div class="field">
+        <label for="roofType">Roof type</label>
+        <select id="roofType"></select>
+      </div>
+      <div class="field">
         <label for="roofPitch">Roof pitch, α (degrees)</label>
         <input type="number" id="roofPitch" min="0" max="45" step="1" value="5" />
       </div>
@@ -123,6 +127,13 @@
           <circle id="buildingCircle" class="compass-building" style="display:none" />
           <line id="latticeCross1" class="compass-lattice" style="display:none" />
           <line id="latticeCross2" class="compass-lattice" style="display:none" />
+          <!-- Roof ridge / hip lines (rect glyph only): ridge runs parallel to W (across the
+               theta=0 wind), hip lines run to the corners. Hidden for monoslope and non-rect glyphs. -->
+          <line id="roofRidge" class="compass-ridge" style="display:none" />
+          <line id="roofHip1" class="compass-ridge" style="display:none" />
+          <line id="roofHip2" class="compass-ridge" style="display:none" />
+          <line id="roofHip3" class="compass-ridge" style="display:none" />
+          <line id="roofHip4" class="compass-ridge" style="display:none" />
           <text id="theta0Label" class="compass-theta-label" text-anchor="middle">θ = 0°</text>
           <text id="theta90Label" class="compass-theta-label" text-anchor="middle">θ = 90°</text>
           <!-- Dimension lines: dimW = primary size (W for rect/wall/lattice, diameter for circles),

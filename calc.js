@@ -204,8 +204,10 @@ function cpeWindwardWall(h) {
   return h > 25 ? 0.8 : 0.7; // Table 5.2(A), z=h case for h<=25m
 }
 
-function cpeLeewardWall({ theta, pitch, db }) {
-  if (theta === 90) {
+function cpeLeewardWall({ theta, pitch, db, roofType }) {
+  // Table 5.2(B), Note 3: for hip roofs use the theta=0 values even when wind is at theta=90.
+  // So the theta=90 (gable) row is only used for gable / monoslope roofs.
+  if (theta === 90 && roofType !== "hip") {
     return interpTable(db, CPE_LEEWARD_THETA90.db, CPE_LEEWARD_THETA90.cpe);
   }
   if (pitch < 10) {

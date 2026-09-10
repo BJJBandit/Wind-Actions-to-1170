@@ -295,6 +295,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   stroke-width: 1.5;
 }
 
+.compass-ridge {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
 .compass-dim-line,
 .compass-dim-tick {
   stroke: var(--text-muted);

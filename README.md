@@ -37,6 +37,10 @@ suitably qualified engineer.
 **Section 5 — Aerodynamic shape factor (enclosed rectangular buildings only)**
 - Wall external pressure coefficients `Cp,e`: windward (Table 5.2(A)), leeward (Table 5.2(B), by
   roof pitch and d/b), side walls (Table 5.2(C), by distance from windward edge)
+- **Roof type** (gable / hip / monoslope): applied where AS/NZS 1170.2 requires the distinction —
+  Table 5.2(B) Note 3 sends a hip roof's leeward wall to the θ = 0° values at every wind direction.
+  Monoslope and hip get explanatory notes for the parts not calculated (Table 5.3(C) hip-end slopes,
+  monoslope leeward wall). The compass diagram draws the ridge (and hip lines) accordingly.
 - Roof external pressure coefficients for **pitch < 10° only** (Table 5.3(A)), by h/d and zone
 - Internal pressure coefficient `Cp,i` cases from Table 5.1(A) (small-opening/impermeable-roof cases)
 - Net pressure `p = 0.5 × ρ_air × Vdes,θ² × Cshp × Cdyn` (Equation 2.4(1))
