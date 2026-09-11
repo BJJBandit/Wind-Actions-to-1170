@@ -744,6 +744,215 @@ function renderCompass() {
   placeRotatingLabel($("arcRightLabel"), 22.5, arcR + 13, azimuth);
 }
 
+// ---------------------------------------------------------------------------
+// Isometric diagram (Section 1) -- a schematic 3D view built from the same
+// building type / roof type / W x L x h inputs as the compass, at a FIXED
+// camera angle. A fixed camera (rather than one that rotates with azimuth)
+// means the set of visible/hidden faces never changes, so occlusion can be
+// hard-coded per shape instead of needing general hidden-surface removal.
+// ---------------------------------------------------------------------------
+
+const ISO_ANGLE_RAD = Math.PI / 6; // 30 deg, standard isometric
+const ISO_VB_CX = 140;
+const ISO_VB_CY = 128;
+const ISO_TARGET_W = 220; // fit-to-box budget inside the 280x250 viewBox
+const ISO_TARGET_H = 186;
+
+// Unrotated, unscaled isometric projection of a local (x=across W, y=along L,
+// z=up) point. x-y and x+y are the two isometric screen axes; z lifts the
+// point up the screen (SVG y grows downward, so subtracting z moves it up).
+function isoProjectRaw(p) {
+  return {
+    sx: (p.x - p.y) * Math.cos(ISO_ANGLE_RAD),
+    sy: (p.x + p.y) * Math.sin(ISO_ANGLE_RAD) - p.z,
+  };
+}
+
+// A rectangular box (base 2*hw x 2*hl, wall height H) with a roof on top.
+// Camera sees the +x and +y walls/roof slopes only -- the -x/-y faces and
+// the underside are never drawn, so no depth sorting is needed between them.
+function buildIsoBox(hw, hl, H, pitchRad, roofType) {
+  const A = { x: -hw, y: -hl, z: 0 };
+  const B = { x: hw, y: -hl, z: 0 };
+  const C = { x: hw, y: hl, z: 0 };
+  const D = { x: -hw, y: hl, z: 0 };
+  const A2 = { x: -hw, y: -hl, z: H };
+  const B2 = { x: hw, y: -hl, z: H };
+  const C2 = { x: hw, y: hl, z: H };
+  const D2 = { x: -hw, y: hl, z: H };
+  const polys = [];
+
+  if (roofType === "flat") {
+    polys.push({ pts: [D, C, C2, D2], cls: "iso-wall" });
+    polys.push({ pts: [B, C, C2, B2], cls: "iso-wall-alt" });
+    polys.push({ pts: [A2, B2, C2, D2], cls: "iso-roof" });
+  } else if (roofType === "gable") {
+    // Ridge runs full-length parallel to W (matches the compass ridge line).
+    const rise = hl * Math.tan(pitchRad);
+    const R1 = { x: -hw, y: 0, z: H + rise };
+    const R2 = { x: hw, y: 0, z: H + rise };
+    polys.push({ pts: [D, C, C2, D2], cls: "iso-wall" }); // eave wall
+    polys.push({ pts: [B, C, C2, R2, B2], cls: "iso-gable" }); // gable end wall
+    polys.push({ pts: [D2, C2, R2, R1], cls: "iso-roof" }); // near roof slope
+  } else if (roofType === "hip") {
+    // Ridge inset by the shorter half-dimension (equal-pitch hip), matching the compass.
+    const rise = Math.min(hw, hl) * Math.tan(pitchRad);
+    const ridgeHalf = Math.max(0, hw - hl);
+    const R1 = { x: -ridgeHalf, y: 0, z: H + rise };
+    const R2 = { x: ridgeHalf, y: 0, z: H + rise };
+    polys.push({ pts: [D, C, C2, D2], cls: "iso-wall" });
+    polys.push({ pts: [B, C, C2, B2], cls: "iso-wall-alt" });
+    polys.push({ pts: [D2, C2, R2, R1], cls: "iso-roof" }); // long-side slope
+    polys.push({ pts: [B2, C2, R2], cls: "iso-roof-alt" }); // hip-end slope
+  } else {
+    // Monoslope: single plane, low eave at y=-hl, high eave at y=+hl.
+    const rise = 2 * hl * Math.tan(pitchRad);
+    const C2h = { x: hw, y: hl, z: H + rise };
+    const D2h = { x: -hw, y: hl, z: H + rise };
+    polys.push({ pts: [D, C, C2h, D2h], cls: "iso-wall" }); // high-side wall
+    polys.push({ pts: [B, C, C2h, B2], cls: "iso-wall-alt" }); // sloped side wall
+    polys.push({ pts: [A2, B2, C2h, D2h], cls: "iso-roof" }); // roof plane
+  }
+
+  return { polys, lines: [] };
+}
+
+// A vertical cylinder (circular bins/silos/tanks, flags/circular shapes): a full top
+// cap, and only the near (camera-facing) half of the wall -- the true silhouette of
+// an isometric circle sits at +/-45 deg either side of the diagonal facing the camera.
+function buildIsoCylinder(r, H) {
+  const N_FULL = 24;
+  const topRim = [];
+  for (let i = 0; i < N_FULL; i++) {
+    const theta = (i / N_FULL) * 2 * Math.PI;
+    topRim.push({ x: r * Math.cos(theta), y: r * Math.sin(theta), z: H });
+  }
+  const N_FRONT = 13;
+  const frontTop = [];
+  const frontBottom = [];
+  for (let i = 0; i < N_FRONT; i++) {
+    const theta = ((-45 + (180 * i) / (N_FRONT - 1)) * Math.PI) / 180;
+    frontTop.push({ x: r * Math.cos(theta), y: r * Math.sin(theta), z: H });
+    frontBottom.push({ x: r * Math.cos(theta), y: r * Math.sin(theta), z: 0 });
+  }
+  const sidePts = frontBottom.concat(frontTop.slice().reverse());
+  return {
+    polys: [
+      { pts: sidePts, cls: "iso-wall" },
+      { pts: topRim, cls: "iso-roof" },
+    ],
+    lines: [],
+  };
+}
+
+// An open lattice tower / exposed frame: corner legs, top/base outlines, and
+// X-bracing on the two visible faces, all as strokes (no fill -- it's a lattice).
+function buildIsoLatticeTower(hw, hl, H) {
+  const A = { x: -hw, y: -hl, z: 0 };
+  const B = { x: hw, y: -hl, z: 0 };
+  const C = { x: hw, y: hl, z: 0 };
+  const D = { x: -hw, y: hl, z: 0 };
+  const A2 = { x: -hw, y: -hl, z: H };
+  const B2 = { x: hw, y: -hl, z: H };
+  const C2 = { x: hw, y: hl, z: H };
+  const D2 = { x: -hw, y: hl, z: H };
+  const L = (p1, p2, cls) => ({ p1, p2, cls });
+  return {
+    polys: [],
+    lines: [
+      L(A, A2, "iso-lattice"),
+      L(B, B2, "iso-lattice"),
+      L(C, C2, "iso-lattice"),
+      L(D, D2, "iso-lattice"),
+      L(A2, B2, "iso-lattice"),
+      L(B2, C2, "iso-lattice"),
+      L(C2, D2, "iso-lattice"),
+      L(D2, A2, "iso-lattice"),
+      L(A, B, "iso-lattice-base"),
+      L(B, C, "iso-lattice-base"),
+      L(C, D, "iso-lattice-base"),
+      L(D, A, "iso-lattice-base"),
+      L(B, C2, "iso-lattice-brace"),
+      L(C, B2, "iso-lattice-brace"),
+      L(D, C2, "iso-lattice-brace"),
+      L(C, D2, "iso-lattice-brace"),
+    ],
+  };
+}
+
+// Projects every point in `shape` at once, fitting the whole drawing (whatever its
+// aspect ratio -- a flat wide shed or a tall thin tower) into the target box.
+function renderIsoShapeToSvg(shape) {
+  const allPts = [];
+  shape.polys.forEach((p) => allPts.push(...p.pts));
+  shape.lines.forEach((l) => allPts.push(l.p1, l.p2));
+  if (allPts.length === 0) return "";
+
+  const raw = allPts.map(isoProjectRaw);
+  const minX = Math.min(...raw.map((p) => p.sx));
+  const maxX = Math.max(...raw.map((p) => p.sx));
+  const minY = Math.min(...raw.map((p) => p.sy));
+  const maxY = Math.max(...raw.map((p) => p.sy));
+  const rawW = Math.max(maxX - minX, 0.01);
+  const rawH = Math.max(maxY - minY, 0.01);
+  const scale = Math.min(ISO_TARGET_W / rawW, ISO_TARGET_H / rawH);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+
+  function project(p) {
+    const r = isoProjectRaw(p);
+    return { x: ISO_VB_CX + (r.sx - cx) * scale, y: ISO_VB_CY + (r.sy - cy) * scale };
+  }
+
+  let out = "";
+  shape.polys.forEach((poly) => {
+    const pts = poly.pts.map(project).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    out += `<polygon points="${pts}" class="${poly.cls}" />`;
+  });
+  shape.lines.forEach((line) => {
+    const p1 = project(line.p1);
+    const p2 = project(line.p2);
+    out += `<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" class="${line.cls}" />`;
+  });
+  return out;
+}
+
+function renderIsometric() {
+  const svg = $("isoSvg");
+  if (!svg) return;
+
+  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType")?.value) || BUILDING_TYPES[0];
+  const roofType = $("roofType")?.value || "gable";
+  const b = parseFloat($("bldB")?.value) || 20;
+  const d = parseFloat($("bldD")?.value) || 15;
+  const h = parseFloat($("bldH")?.value) || 10;
+  const pitchDeg = parseFloat($("roofPitch")?.value) || 0;
+
+  const hw = Math.max(b, 0.1) / 2;
+  const hl = Math.max(d, 0.1) / 2;
+  const H = Math.max(h, 0.1);
+  const pitchRad = (Math.max(0, Math.min(60, pitchDeg)) * Math.PI) / 180;
+
+  let shape;
+  if (type.glyph === "circle") {
+    shape = buildIsoCylinder(hw, H);
+  } else if (type.glyph === "wall") {
+    const thickness = Math.max(hw * 0.04, 0.4);
+    shape = buildIsoBox(hw, thickness, H, 0, "flat");
+  } else if (type.glyph === "lattice") {
+    shape = buildIsoLatticeTower(hw, hl, H);
+  } else {
+    shape = buildIsoBox(hw, hl, H, pitchRad, roofType);
+  }
+
+  svg.innerHTML = renderIsoShapeToSvg(shape);
+}
+
+function renderDiagrams() {
+  renderCompass();
+  renderIsometric();
+}
+
 function setAzimuthFromCompassEvent(evt) {
   const svg = $("compassSvg");
   const pt = svg.createSVGPoint();
@@ -793,11 +1002,13 @@ function wireCompass() {
     dragging = false;
   });
 
-  $("azimuth").addEventListener("change", renderCompass);
-  $("bldB")?.addEventListener("input", renderCompass);
-  $("bldD")?.addEventListener("input", renderCompass);
-  $("buildingType")?.addEventListener("change", renderCompass);
-  $("roofType")?.addEventListener("change", renderCompass);
+  $("azimuth").addEventListener("change", renderDiagrams);
+  $("bldB")?.addEventListener("input", renderDiagrams);
+  $("bldD")?.addEventListener("input", renderDiagrams);
+  $("bldH")?.addEventListener("input", renderDiagrams);
+  $("roofPitch")?.addEventListener("input", renderDiagrams);
+  $("buildingType")?.addEventListener("change", renderDiagrams);
+  $("roofType")?.addEventListener("change", renderDiagrams);
 }
 
 // ---------------------------------------------------------------------------
@@ -816,7 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
   populateCpiCases();
   wireTopographyControls();
   wireCompass();
-  renderCompass();
+  renderDiagrams();
 
   $("calcSpeeds").addEventListener("click", runSpeedCalc);
   $("calcPressure").addEventListener("click", renderPressureResults);

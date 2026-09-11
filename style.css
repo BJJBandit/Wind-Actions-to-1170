@@ -236,7 +236,16 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .val-pos { color: var(--pos); font-weight: 600; }
 .val-neg { color: var(--neg); font-weight: 600; }
 
-.compass-wrap {
+.diagram-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.compass-wrap,
+.iso-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -245,9 +254,14 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   text-align: center;
 }
 
-.compass-wrap .hint {
-  max-width: 420px;
+.compass-wrap .hint,
+.iso-wrap .hint {
+  max-width: 320px;
   margin: 0;
+}
+
+#isoSvg {
+  overflow: visible;
 }
 
 #compassSvg {
@@ -299,6 +313,62 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   stroke: var(--accent);
   stroke-width: 1;
   stroke-dasharray: 2 2;
+}
+
+.iso-wall {
+  fill: var(--accent);
+  fill-opacity: 0.4;
+  stroke: var(--accent-dark);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.iso-wall-alt {
+  fill: var(--accent);
+  fill-opacity: 0.22;
+  stroke: var(--accent-dark);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.iso-gable {
+  fill: var(--accent);
+  fill-opacity: 0.3;
+  stroke: var(--accent-dark);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.iso-roof {
+  fill: var(--accent-dark);
+  fill-opacity: 0.55;
+  stroke: var(--accent-dark);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.iso-roof-alt {
+  fill: var(--accent-dark);
+  fill-opacity: 0.4;
+  stroke: var(--accent-dark);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.iso-lattice {
+  stroke: var(--accent-dark);
+  stroke-width: 1.2;
+}
+
+.iso-lattice-base {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.iso-lattice-brace {
+  stroke: var(--accent);
+  stroke-width: 1;
 }
 
 .compass-dim-line,

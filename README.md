@@ -40,7 +40,8 @@ suitably qualified engineer.
 - **Roof type** (gable / hip / monoslope): applied where AS/NZS 1170.2 requires the distinction —
   Table 5.2(B) Note 3 sends a hip roof's leeward wall to the θ = 0° values at every wind direction.
   Monoslope and hip get explanatory notes for the parts not calculated (Table 5.3(C) hip-end slopes,
-  monoslope leeward wall). The compass diagram draws the ridge (and hip lines) accordingly.
+  monoslope leeward wall). The compass diagram draws the ridge (and hip lines) accordingly, and the
+  isometric view (see below) redraws the whole roof form.
 - Roof external pressure coefficients for **pitch < 10° only** (Table 5.3(A)), by h/d and zone
 - Internal pressure coefficient `Cp,i` cases from Table 5.1(A) (small-opening/impermeable-roof cases)
 - Net pressure `p = 0.5 × ρ_air × Vdes,θ² × Cshp × Cdyn` (Equation 2.4(1))
@@ -100,6 +101,19 @@ ARI field in Section 2 (still fully editable) with a prompt to confirm:
   other than 50 years, and
 - that serviceability limit state design uses a separate, shorter ARI (commonly 20–25 years) which this
   selector does not set.
+
+## Isometric view
+
+Next to the compass, a schematic isometric drawing redraws itself from the same building type, roof
+type/pitch, and W × L × h inputs — a box with a gable/hip/monoslope roof for enclosed buildings, a
+cylinder for circular bins/silos/tanks and flags/circular shapes, a thin panel for freestanding
+walls/hoardings/canopies, and an open cross-braced frame for exposed members/lattice towers.
+
+It uses a **fixed camera angle** rather than rotating with the building's bearing. That's deliberate:
+with a fixed camera the set of visible/hidden faces never changes, so which face is drawn on top of
+which can be hard-coded per shape — a camera that rotated with azimuth would need genuine hidden-surface
+removal to stay correct at every angle, which is a lot of additional risk for a decorative diagram. It's
+schematic only (not to engineering scale, no shadows/lighting beyond flat per-face tints for legibility).
 
 ## What's deliberately out of scope
 
