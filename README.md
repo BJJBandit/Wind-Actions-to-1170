@@ -53,6 +53,29 @@ suitably qualified engineer.
   redraws the whole roof form.
 - Internal pressure coefficient `Cp,i` cases from Table 5.1(A) (small-opening/impermeable-roof cases)
 - Net pressure `p = 0.5 × ρ_air × Vdes,θ² × Cshp × Cdyn` (Equation 2.4(1))
+- A **plan and elevation pressure diagram** (direction picked from a dropdown) that redraws from the
+  same per-axis results — see "Plan & elevation pressure diagrams" below.
+
+## Plan & elevation pressure diagrams
+
+Below the pressure tables, a direction dropdown drives two schematic SVG views built from the same
+per-axis results Section 3 already computed (no recalculation on dropdown change):
+
+- **Plan** — the footprint from above, wind drawn from the top. Windward/leeward strips run across the
+  top/bottom edges; the side walls are split into their real zones (0–1h, 1h–2h, 2h–3h, >3h from the
+  windward edge), clipped to however much of each zone actually fits within the building's depth.
+- **Elevation** — a section cut along the wind path, wind from the left. Wall strips at each end; the
+  roof line follows the actual gable/hip/monoslope profile when wind is normal to the ridge, or is drawn
+  flat (with a note) when wind is parallel to the ridge, since a gable/monoslope roof doesn't slope in
+  that cut.
+
+Both use colour (the same pos/neg palette as the results tables) with opacity scaled to `|p_net|`
+*within that view only* — it is not a scale shared between directions, so don't compare colour intensity
+across two different dropdown selections. Where a surface has more than one load case (Clause 5.4.1
+turbulence, or more than one `Cp,i` value), the diagram shows whichever is more extreme; both stay listed
+in the tables above. These are schematic and not to scale, and — unlike the compass/isometric views in
+Section 1 — not linked to the building's true bearing; they always draw wind from a fixed direction (top
+for plan, left for elevation) for the axis currently selected.
 
 ## Site location dropdown
 

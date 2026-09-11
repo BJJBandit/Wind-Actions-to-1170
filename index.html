@@ -299,11 +299,32 @@
       </div>
     </div>
 
-    <p class="hint">Plan size (W × L), roof height, roof pitch and wind direction relative to the ridge are set in the Building section above.</p>
+    <p class="hint">Plan size (W × L), roof height and roof type/pitch are set in the Building section above.</p>
 
     <button id="calcPressure" class="primary">Calculate wind pressures</button>
 
     <div id="pressureResults" class="results" hidden></div>
+
+    <div id="pressureDiagrams" class="results" hidden>
+      <h3>Plan &amp; elevation pressure diagrams</h3>
+      <div class="field diagram-axis-picker">
+        <label for="pressureDiagramAxis">Direction to display</label>
+        <select id="pressureDiagramAxis"></select>
+      </div>
+      <div class="diagram-row">
+        <div class="compass-wrap">
+          <svg id="planViewSvg" viewBox="0 0 320 300" width="300" height="281" role="img" aria-label="Plan view of wind pressure on the building"></svg>
+          <p class="hint">Plan view, wind from the top. Windward/leeward strips across the top and bottom edges; side wall zones (windward
+            edge outward) down the left and right edges.</p>
+        </div>
+        <div class="compass-wrap">
+          <svg id="elevationViewSvg" viewBox="0 0 320 240" width="300" height="225" role="img" aria-label="Elevation view of wind pressure on the building"></svg>
+          <p class="hint">Elevation (section) along the wind path, wind from the left. Wall strips at each end; the roof line is coloured
+            where a value is available for this direction.</p>
+        </div>
+      </div>
+      <p class="note" id="pressureDiagramCaption"></p>
+    </div>
   </section>
 </main>
 

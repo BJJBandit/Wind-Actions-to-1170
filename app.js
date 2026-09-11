@@ -408,6 +408,11 @@ function runSpeedCalc() {
 // every axis with its own governing Vdes,theta rather than one manually-entered value.
 let lastDesignResults = null;
 
+// Cached from the last "Calculate wind pressures" run -- the full per-axis wall/roof pressure results
+// (same array built in renderPressureResults). The plan/elevation diagrams redraw from this on a
+// direction-dropdown change without recomputing anything.
+let lastAxisResults = null;
+
 // Computes wall + roof pressure rows for ONE building orthogonal axis. `b`/`d` must already be the
 // EFFECTIVE across-wind / along-wind dimensions for THIS axis's wind direction -- for the two axes
 // where wind is parallel to the ridge, that's the building's W and L swapped relative to the ridge-
@@ -533,8 +538,9 @@ function renderPressureResults() {
     const b = ridgeTheta === 0 ? bldB : bldD;
     const d = ridgeTheta === 0 ? bldD : bldB;
     const calc = computeAxisPressures({ Vdes: axis.Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase });
-    return { label: axis.label, bearing: axis.theta, Vdes: axis.Vdes, ridgeTheta, ...calc };
+    return { label: axis.label, bearing: axis.theta, Vdes: axis.Vdes, ridgeTheta, b, d, h, pitch, roofType, ...calc };
   });
+  lastAxisResults = axisResults; // cached for the plan/elevation pressure diagrams
 
   // Governing (largest-magnitude) net pressure across all 4 axes, for a quick top-line summary.
   function governing(rows) {
@@ -622,6 +628,252 @@ function renderPressureResults() {
       d/b and h/d are both relative to the wind direction for that axis (b = across-wind, d = along-wind), so they differ between the
       front/back and side axes.</p>
   `;
+
+  $("pressureDiagrams").hidden = false;
+  renderPressureDiagrams();
+}
+
+// ---------------------------------------------------------------------------
+// Plan & elevation pressure diagrams (Section 3) -- schematic, fixed-geometry views
+// (not linked to the compass's azimuth) redrawn from the axis picked in the dropdown,
+// using the cached per-axis results from the last "Calculate wind pressures" run.
+// ---------------------------------------------------------------------------
+
+function pressureFillClass(pNet) {
+  return pNet >= 0 ? "press-pos" : "press-neg";
+}
+
+// Fill/stroke opacity scaled by |pNet| relative to the largest magnitude in the current
+// view, so the diagram reads clearly regardless of the absolute pressure range.
+function pressureOpacity(pNet, maxAbs) {
+  if (!maxAbs) return "0.35";
+  const frac = Math.min(1, Math.abs(pNet) / maxAbs);
+  return (0.2 + 0.65 * frac).toFixed(2);
+}
+
+// A surface can have more than one row (Clause 5.4.1's two turbulence load cases, or more
+// than one Cp,i value) -- the diagram shows whichever is more extreme; both stay listed in
+// the detailed tables above.
+function governingRowForSurface(rows, surfaceLabel) {
+  const matches = rows.filter((r) => r.surfaceLabel === surfaceLabel);
+  if (!matches.length) return null;
+  return matches.reduce((worst, r) => (Math.abs(r.pNet) > Math.abs(worst.pNet) ? r : worst), matches[0]);
+}
+
+function windArrowSvg(x1, y1, x2, y2) {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const headLen = 8;
+  const a1 = angle + Math.PI * 0.8;
+  const a2 = angle - Math.PI * 0.8;
+  const hx1 = x2 + headLen * Math.cos(a1);
+  const hy1 = y2 + headLen * Math.sin(a1);
+  const hx2 = x2 + headLen * Math.cos(a2);
+  const hy2 = y2 + headLen * Math.sin(a2);
+  return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="press-arrow" />
+    <polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${hx1.toFixed(1)},${hy1.toFixed(1)} ${hx2.toFixed(1)},${hy2.toFixed(1)}" class="press-arrow" />`;
+}
+
+const PLAN_CX = 160;
+const PLAN_MAX_W = 190;
+const PLAN_MAX_H = 150;
+const PLAN_TOP = 78;
+const PLAN_STRIP = 14;
+
+// Plan view, wind always drawn from the top regardless of true bearing -- this is a schematic
+// "wind hits this face" diagram for the selected axis, not tied to the compass's azimuth.
+function buildPlanViewSvg(axis) {
+  const b = Math.max(axis.b, 0.1);
+  const d = Math.max(axis.d, 0.1);
+  const h = Math.max(axis.h, 0.1);
+  const scale = Math.min(PLAN_MAX_W / b, PLAN_MAX_H / d);
+  const sb = b * scale;
+  const sd = d * scale;
+  const rectX = PLAN_CX - sb / 2;
+  const rectY = PLAN_TOP;
+
+  const windwardRow = governingRowForSurface(axis.wallRows, "Windward wall");
+  const leewardRow = governingRowForSurface(axis.wallRows, "Leeward wall");
+  const maxAbs = Math.max(...axis.wallRows.map((r) => Math.abs(r.pNet)), 0.01);
+
+  function strip(x, y, w, ht, pNet) {
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${ht.toFixed(1)}" class="${pressureFillClass(pNet)}" fill-opacity="${pressureOpacity(pNet, maxAbs)}" />`;
+  }
+
+  let out = `<rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${sb.toFixed(1)}" height="${sd.toFixed(1)}" class="press-outline" />`;
+  out += windArrowSvg(PLAN_CX, 16, PLAN_CX, rectY - 8);
+  out += `<text x="${PLAN_CX}" y="12" text-anchor="middle" class="press-arrow-label">Wind</text>`;
+
+  if (windwardRow) {
+    out += strip(rectX, rectY, sb, PLAN_STRIP, windwardRow.pNet);
+    out += `<text x="${PLAN_CX}" y="${(rectY + PLAN_STRIP / 2 + 3).toFixed(1)}" text-anchor="middle" class="press-label">${fmt(windwardRow.pNet, 2)}</text>`;
+  }
+  if (leewardRow) {
+    const ly = rectY + sd - PLAN_STRIP;
+    out += strip(rectX, ly, sb, PLAN_STRIP, leewardRow.pNet);
+    out += `<text x="${PLAN_CX}" y="${(ly + PLAN_STRIP / 2 + 3).toFixed(1)}" text-anchor="middle" class="press-label">${fmt(leewardRow.pNet, 2)}</text>`;
+  }
+
+  CPE_SIDEWALL_ZONES.forEach((zone) => {
+    const row = governingRowForSurface(axis.wallRows, `Side wall, ${zone.label}`);
+    if (!row) return;
+    const fromM = Math.min(zone.from * h, d);
+    const toM = Math.min(zone.to === Infinity ? d : zone.to * h, d);
+    if (fromM >= d || toM - fromM < 0.01) return;
+    const y1 = rectY + fromM * scale;
+    const y2 = rectY + toM * scale;
+    out += strip(rectX, y1, PLAN_STRIP, y2 - y1, row.pNet);
+    out += strip(rectX + sb - PLAN_STRIP, y1, PLAN_STRIP, y2 - y1, row.pNet);
+    if (y2 - y1 > 15) {
+      const midY = (y1 + y2) / 2 + 3;
+      out += `<text x="${(rectX + PLAN_STRIP / 2).toFixed(1)}" y="${midY.toFixed(1)}" text-anchor="middle" class="press-label press-label-sm">${fmt(row.pNet, 1)}</text>`;
+      out += `<text x="${(rectX + sb - PLAN_STRIP / 2).toFixed(1)}" y="${midY.toFixed(1)}" text-anchor="middle" class="press-label press-label-sm">${fmt(row.pNet, 1)}</text>`;
+    }
+  });
+
+  return out;
+}
+
+const ELEV_CX = 170;
+const ELEV_BASE_Y = 195;
+const ELEV_MAX_W = 200;
+const ELEV_MAX_H = 130;
+
+// Elevation (section) along the wind path, wind from the left. For the ridge-normal axes the
+// roof line follows the actual gable/hip/monoslope profile; for the ridge-parallel axes a
+// gable/monoslope roof doesn't slope in this cut, so it's drawn flat (with a note) -- a hip
+// roof's true along-length shape near its ends isn't attempted here, see the isometric view.
+function buildElevationSvg(axis) {
+  const d = Math.max(axis.d, 0.1);
+  const H = Math.max(axis.h, 0.1);
+  const pitchRad = (Math.max(0, Math.min(60, axis.pitch)) * Math.PI) / 180;
+  const rows = axis.roofRows;
+
+  function gov(label) {
+    return governingRowForSurface(rows, label);
+  }
+
+  let roofPts;
+  const segments = [];
+
+  if (axis.ridgeTheta !== 0 || axis.pitch < 10) {
+    roofPts = [
+      { x: 0, y: H },
+      { x: d, y: H },
+    ];
+    CPE_ROOF_LOWPITCH.zones.forEach((zone) => {
+      const row = gov(`Roof, ${zone.label}`);
+      if (!row) return;
+      const fromM = Math.min(zone.from * H, d);
+      const toM = Math.min(zone.to === Infinity ? d : zone.to * H, d);
+      if (fromM >= d || toM - fromM < 0.01) return;
+      segments.push({ x1: fromM, x2: toM, y1: H, y2: H, row });
+    });
+  } else if (axis.roofType === "monoslope") {
+    const rise = d * Math.tan(pitchRad);
+    roofPts = [
+      { x: 0, y: H },
+      { x: d, y: H + rise },
+    ];
+    const row = gov("Roof, windward (upwind) slope");
+    if (row) segments.push({ x1: 0, x2: d, y1: H, y2: H + rise, row });
+  } else {
+    // gable/hip, pitch >= 10: the along-wind (side) elevation is the same peaked profile for both.
+    const rise = (d / 2) * Math.tan(pitchRad);
+    roofPts = [
+      { x: 0, y: H },
+      { x: d / 2, y: H + rise },
+      { x: d, y: H },
+    ];
+    const upRow = gov("Roof, windward (upwind) slope");
+    const downRow = gov("Roof, leeward (downwind) slope");
+    if (upRow) segments.push({ x1: 0, x2: d / 2, y1: H, y2: H + rise, row: upRow });
+    if (downRow) segments.push({ x1: d / 2, x2: d, y1: H + rise, y2: H, row: downRow });
+  }
+
+  const maxHeight = Math.max(...roofPts.map((p) => p.y));
+  const scale = Math.min(ELEV_MAX_W / d, ELEV_MAX_H / maxHeight);
+  const baseX = ELEV_CX - (d * scale) / 2;
+  const sx = (xm) => baseX + xm * scale;
+  const sy = (ym) => ELEV_BASE_Y - ym * scale;
+
+  const windwardRow = governingRowForSurface(axis.wallRows, "Windward wall");
+  const leewardRow = governingRowForSurface(axis.wallRows, "Leeward wall");
+  const maxAbs = Math.max(...rows.concat(axis.wallRows).map((r) => Math.abs(r.pNet)), 0.01);
+
+  let out = `<line x1="${(baseX - 20).toFixed(1)}" y1="${ELEV_BASE_Y}" x2="${(baseX + d * scale + 20).toFixed(1)}" y2="${ELEV_BASE_Y}" class="press-ground" />`;
+
+  const arrowY = ELEV_BASE_Y - (maxHeight * scale) / 2;
+  out += windArrowSvg(baseX - 45, arrowY, baseX - 12, arrowY);
+  out += `<text x="${(baseX - 28).toFixed(1)}" y="${(arrowY - 8).toFixed(1)}" text-anchor="middle" class="press-arrow-label">Wind</text>`;
+
+  const wallW = 12;
+  if (windwardRow) {
+    const y0 = sy(0);
+    const yH = sy(H);
+    out += `<rect x="${sx(0).toFixed(1)}" y="${yH.toFixed(1)}" width="${wallW}" height="${(y0 - yH).toFixed(1)}" class="${pressureFillClass(windwardRow.pNet)}" fill-opacity="${pressureOpacity(windwardRow.pNet, maxAbs)}" />`;
+    out += `<text x="${(sx(0) + wallW / 2).toFixed(1)}" y="${((y0 + yH) / 2 + 3).toFixed(1)}" text-anchor="middle" class="press-label press-label-sm" transform="rotate(-90 ${(sx(0) + wallW / 2).toFixed(1)} ${((y0 + yH) / 2 + 3).toFixed(1)})">${fmt(windwardRow.pNet, 2)}</text>`;
+  }
+  const leewardHeight = roofPts[roofPts.length - 1].y;
+  if (leewardRow) {
+    const y0 = sy(0);
+    const yH = sy(leewardHeight);
+    out += `<rect x="${(sx(d) - wallW).toFixed(1)}" y="${yH.toFixed(1)}" width="${wallW}" height="${(y0 - yH).toFixed(1)}" class="${pressureFillClass(leewardRow.pNet)}" fill-opacity="${pressureOpacity(leewardRow.pNet, maxAbs)}" />`;
+    out += `<text x="${(sx(d) - wallW / 2).toFixed(1)}" y="${((y0 + yH) / 2 + 3).toFixed(1)}" text-anchor="middle" class="press-label press-label-sm" transform="rotate(-90 ${(sx(d) - wallW / 2).toFixed(1)} ${((y0 + yH) / 2 + 3).toFixed(1)})">${fmt(leewardRow.pNet, 2)}</text>`;
+  }
+
+  const outlinePts = roofPts.map((p) => `${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(" ");
+  out += `<polyline points="${outlinePts}" class="press-outline" />`;
+  out += `<line x1="${sx(0).toFixed(1)}" y1="${ELEV_BASE_Y}" x2="${sx(0).toFixed(1)}" y2="${sy(H).toFixed(1)}" class="press-outline" />`;
+  out += `<line x1="${sx(d).toFixed(1)}" y1="${ELEV_BASE_Y}" x2="${sx(d).toFixed(1)}" y2="${sy(leewardHeight).toFixed(1)}" class="press-outline" />`;
+
+  segments.forEach((seg) => {
+    const x1 = sx(seg.x1);
+    const y1 = sy(seg.y1);
+    const x2 = sx(seg.x2);
+    const y2 = sy(seg.y2);
+    out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="press-roof-seg ${pressureFillClass(seg.row.pNet)}" stroke-opacity="${pressureOpacity(seg.row.pNet, maxAbs)}" />`;
+    if (Math.abs(x2 - x1) > 24 || Math.abs(y2 - y1) > 24) {
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2 - 7;
+      out += `<text x="${midX.toFixed(1)}" y="${midY.toFixed(1)}" text-anchor="middle" class="press-label press-label-sm">${fmt(seg.row.pNet, 2)}</text>`;
+    }
+  });
+
+  if (!segments.length && axis.roofUnavailableNote) {
+    out += `<text x="${ELEV_CX}" y="${(sy(H) - 12).toFixed(1)}" text-anchor="middle" class="press-note-text">roof C&#8320;,e not available for this direction</text>`;
+  } else if (axis.ridgeTheta !== 0 && axis.pitch >= 10) {
+    out += `<text x="${ELEV_CX}" y="${(sy(H) - 12).toFixed(1)}" text-anchor="middle" class="press-note-text">roof shown flat -- parallel to ridge</text>`;
+  }
+
+  return out;
+}
+
+function populatePressureDiagramAxis() {
+  const sel = $("pressureDiagramAxis");
+  const labels = ["θ=0° (front)", "θ=90°", "θ=180°", "θ=270°"];
+  labels.forEach((label, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = label;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", renderPressureDiagrams);
+}
+
+function renderPressureDiagrams() {
+  if (!lastAxisResults) return;
+  const idx = parseInt($("pressureDiagramAxis").value, 10) || 0;
+  const axis = lastAxisResults[idx];
+  if (!axis) return;
+
+  $("planViewSvg").innerHTML = buildPlanViewSvg(axis);
+  $("elevationViewSvg").innerHTML = buildElevationSvg(axis);
+
+  $("pressureDiagramCaption").innerHTML = `Plan and elevation for <strong>${axis.label}</strong>
+    (bearing ${fmt(axis.bearing, 0)}&deg;, V<sub>des,&theta;</sub> = ${fmt(axis.Vdes, 1)} m/s). Colour intensity scales with
+    |p<sub>net</sub>| within this view only (not a scale shared between directions). Where a surface has more than one load
+    case (Clause 5.4.1 turbulence, or multiple C<sub>p,i</sub> values), the more extreme one is shown here; both are still
+    listed in the tables above. Schematic only, not to scale, and not linked to the compass's bearing.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1116,6 +1368,7 @@ document.addEventListener("DOMContentLoaded", () => {
   populateBuildingSizes();
   populateAri();
   populateCpiCases();
+  populatePressureDiagramAxis();
   wireTopographyControls();
   wireCompass();
   renderDiagrams();
