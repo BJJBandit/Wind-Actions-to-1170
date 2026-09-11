@@ -35,14 +35,22 @@ suitably qualified engineer.
   `Mt = 0.5 + 0.5Mh` and the >500 m AMSL case `Mt = Mh·Mlee·(1+0.00015E)`
 
 **Section 5 — Aerodynamic shape factor (enclosed rectangular buildings only)**
+- Calculates wall and roof pressures for **all 4 building orthogonal axes** (Clause 2.5.2's minimum) in
+  one go, each priced with its own governing `Vdes,θ` from Section 2 — not just a single hand-picked
+  direction. A summary line calls out the governing (largest-magnitude) wall and roof pressure across
+  all four.
 - Wall external pressure coefficients `Cp,e`: windward (Table 5.2(A)), leeward (Table 5.2(B), by
-  roof pitch and d/b), side walls (Table 5.2(C), by distance from windward edge)
+  roof pitch and d/b), side walls (Table 5.2(C), by distance from windward edge) — computed per axis,
+  with `d/b` swapped for the two side axes since it's always relative to the current wind direction
+- **Roof pressures for every pitch up to 45°** when wind is normal to the ridge (the front/back axes):
+  Table 5.3(A) below 10°, Tables 5.3(B) (windward/upwind slope) and 5.3(C) (leeward/downwind slope, and
+  a hip roof's hip-end slopes) at 10–45°. For pitch ≥ 10° with wind parallel to the ridge (the side
+  axes), Tables 5.3(B)/(C) don't tabulate the crosswind case, so that axis is flagged rather than guessed.
 - **Roof type** (gable / hip / monoslope): applied where AS/NZS 1170.2 requires the distinction —
-  Table 5.2(B) Note 3 sends a hip roof's leeward wall to the θ = 0° values at every wind direction.
-  Monoslope and hip get explanatory notes for the parts not calculated (Table 5.3(C) hip-end slopes,
-  monoslope leeward wall). The compass diagram draws the ridge (and hip lines) accordingly, and the
-  isometric view (see below) redraws the whole roof form.
-- Roof external pressure coefficients for **pitch < 10° only** (Table 5.3(A)), by h/d and zone
+  Table 5.2(B) Note 3 sends a hip roof's leeward wall to the θ = 0° values at every wind direction, and
+  a hip roof's hip-end (R) slopes use the same Table 5.3(C) value as the downwind slope (Clause
+  5.4.1(c)). The compass diagram draws the ridge (and hip lines) accordingly, and the isometric view
+  redraws the whole roof form.
 - Internal pressure coefficient `Cp,i` cases from Table 5.1(A) (small-opening/impermeable-roof cases)
 - Net pressure `p = 0.5 × ρ_air × Vdes,θ² × Cshp × Cdyn` (Equation 2.4(1))
 
@@ -127,10 +135,11 @@ To avoid presenting numbers with false confidence, the following are **not** aut
 - **Ka, Kc, Kl, Kp** (area reduction, action combination, local pressure, porous cladding factors) are
   all taken as 1.0. These matter for cladding/fixing design — apply them separately per Clauses
   5.4.2–5.4.5.
-- **Pitched roofs ≥ 10°** (Tables 5.3(B)/(C)) — the source table has gaps for h/d ≥ 1.0 that aren't
-  safe to guess at, and the full table is a 2D lookup on pitch × h/d that wasn't reliably extractable.
-  Source `Cp,e` from the Standard directly and compute the pressure by hand for these roofs.
-  Low-pitch roofs (< 10°) are fully covered.
+- **Pitched roofs ≥ 10° with wind parallel to the ridge** (the two "side" building axes) — Tables
+  5.3(B)/(C) only tabulate the upwind/downwind case (wind normal to the ridge, the "front/back" axes),
+  which is what's calculated. The crosswind case isn't given a simple table in Section 5; source
+  `Cp,e` from the Standard directly for that axis. Every other pitch/direction combination up to 45° is
+  calculated (Tables 5.3(A)/(B)/(C)).
 - **Regions C/D coastal-distance interpolation** (Clause 3.2) — only the tabulated *maximum* values are
   offered; the Standard's distance-based interpolation depends on the regional maps (Figure 3.1) which
   aren't reproducible here. Using the maximum value is conservative.
@@ -147,14 +156,15 @@ To avoid presenting numbers with false confidence, the following are **not** aut
 1. Open `index.html` in a browser (or visit the GitHub Pages URL if enabled for this repo).
 2. **Section 1 (Building)** — pick the building type (only "Enclosed rectangular building" is actually
    calculated — see below) and, optionally, an importance level to suggest an ARI; then set the
-   building's plan size (W × L, or pick a preset), average roof height, roof pitch, wind direction
-   relative to the ridge, and bearing (drag the compass or use the dropdown). These feed both sections
-   below.
+   building's plan size (W × L, or pick a preset), average roof height, roof type/pitch, and bearing
+   (drag the compass or use the dropdown). These feed both sections below.
 3. **Section 2 (Site wind speed)** — pick region, ARI, terrain category, and optional shielding /
    topography inputs, then **Calculate wind speeds**. This gives `Vsit,β` for all 8 directions and
-   `Vdes,θ` for the 4 building axes; the governing `Vdes,θ` is copied into Section 3 automatically.
+   `Vdes,θ` for the 4 building axes.
 4. **Section 3 (Design wind pressure)** — set `Cdyn` and an internal pressure case, then **Calculate
-   wind pressures** for windward/leeward/side wall and (pitch < 10°) roof zones.
+   wind pressures**. Computes windward/leeward/side wall and roof pressures for **all 4 building axes**,
+   each priced with its own `Vdes,θ` from Section 2 — no need to pick a single direction — with a
+   summary line calling out the governing (largest-magnitude) wall and roof pressure.
 
 ## Hosting on GitHub Pages
 

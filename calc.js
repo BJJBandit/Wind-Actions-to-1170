@@ -244,3 +244,38 @@ function cpeRoofLowPitch(hd) {
 function round2(x) {
   return Math.round(x * 100) / 100;
 }
+
+// Table 5.3(B) -- roof Cp,e, upwind (windward) slope, pitch >= 10 deg. Returns [more-neg, less-neg].
+// 2D lookup: interpolate along pitch within each tabulated h/d row, then interpolate those results
+// along h/d. Table 5.3 notes say interpolate h/d linearly; pitch interpolation follows the same
+// convention used elsewhere in Section 5 for intermediate angles.
+function cpeRoofUpwindPitched(hd, pitch) {
+  const T = CPE_ROOF_UPWIND_PITCHED;
+  if (pitch >= 45) {
+    return [0.0, round2(0.8 * Math.sin((45 * Math.PI) / 180))];
+  }
+  const clampedPitch = Math.max(T.pitch[0], Math.min(T.pitch[T.pitch.length - 1], pitch));
+  const rowResults = T.rows.map((row) => [
+    interpTable(clampedPitch, T.pitch, row.map((v) => v[0])),
+    interpTable(clampedPitch, T.pitch, row.map((v) => v[1])),
+  ]);
+  const moreNeg = interpTable(hd, T.hd, rowResults.map((r) => r[0]));
+  const lessNeg = interpTable(hd, T.hd, rowResults.map((r) => r[1]));
+  return [round2(moreNeg), round2(lessNeg)];
+}
+
+// Table 5.3(C) -- roof Cp,e, downwind slope (D) / hip-end crosswind slope (R), pitch >= 10 deg.
+// A single (always-negative) value. For pitch >= 25 deg the Standard gives a b/d-based formula
+// instead of a pitch-dependent table (b = building width, d = depth, both in the current wind
+// direction -- i.e. b/d is the reciprocal of the d/b used for the leeward wall).
+function cpeRoofDownwindPitched(hd, pitch, bOverD) {
+  if (pitch >= 25) {
+    if (bOverD <= 3) return -0.6;
+    if (bOverD >= 8) return -0.9;
+    return round2(-0.06 * (7 + bOverD));
+  }
+  const T = CPE_ROOF_DOWNWIND_PITCHED;
+  const clampedPitch = Math.max(T.pitch[0], Math.min(T.pitch[T.pitch.length - 1], pitch));
+  const rowResults = T.rows.map((row) => interpTable(clampedPitch, T.pitch, row));
+  return round2(interpTable(hd, T.hd, rowResults));
+}

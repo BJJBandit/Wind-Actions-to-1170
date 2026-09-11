@@ -394,6 +394,7 @@ function runSpeedCalc() {
   const mt = computeMtFromForm(regionKey);
   const siteResult = computeSiteWindSpeeds({ regionKey, R, terrainCategory, z, h, s, Mt: mt.value });
   const designResults = computeDesignWindSpeeds(siteResult.perDirection, azimuth);
+  lastDesignResults = designResults; // cached for Section 3's per-axis pressure calc
 
   renderSpeedResults({ region: regionKey, R, terrainCategory, z, siteResult, designResults, mt });
 }
@@ -402,26 +403,25 @@ function runSpeedCalc() {
 // Section B: design wind pressure
 // ---------------------------------------------------------------------------
 
-function renderPressureResults() {
-  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType").value);
-  if (type && !type.supported) return; // defence-in-depth -- the button is disabled for this case
+// Cached from the last "Calculate wind speeds" run (Section 2) -- an array of the 4 orthogonal-axis
+// {label, theta (bearing), Vdes} entries from computeDesignWindSpeeds(). Section 3 uses this to price
+// every axis with its own governing Vdes,theta rather than one manually-entered value.
+let lastDesignResults = null;
 
-  const Vdes = parseFloat($("pVdes").value) || 0;
-  const Cdyn = parseFloat($("pCdyn").value) || 1.0;
-  const b = parseFloat($("bldB").value) || 1;
-  const d = parseFloat($("bldD").value) || 1;
-  const h = parseFloat($("bldH").value) || 1;
-  const pitch = parseFloat($("roofPitch").value) || 0;
-  const theta = parseInt($("windTheta").value, 10);
-  const roofType = $("roofType").value || "gable";
+// Computes wall + roof pressure rows for ONE building orthogonal axis. `b`/`d` must already be the
+// EFFECTIVE across-wind / along-wind dimensions for THIS axis's wind direction -- for the two axes
+// where wind is parallel to the ridge, that's the building's W and L swapped relative to the ridge-
+// normal axes, since AS/NZS 1170.2's d/b (leeward wall) and h/d (roof) ratios are always defined
+// relative to the current wind direction, not fixed to the building's W/L labelling.
+function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase }) {
   const db = d / b;
+  const bOverD = b / d;
   const hd = h / d;
 
-  const cpiCase = CPI_CASES.find((c) => c.id === $("cpiCase").value);
   const cpeWw = cpeWindwardWall(h);
-  const cpeLw = cpeLeewardWall({ theta, pitch, db, roofType });
+  const cpeLw = cpeLeewardWall({ theta: ridgeTheta, pitch, db, roofType });
   // For a hip roof, Table 5.2(B) Note 3 sends the leeward wall to the theta=0 branch even at theta=90.
-  const leewardUsesTheta0 = theta === 0 || roofType === "hip";
+  const leewardUsesTheta0 = ridgeTheta === 0 || roofType === "hip";
   const leewardTableMinDb = !leewardUsesTheta0 || pitch < 10 ? 1 : pitch >= 25 ? 0.1 : null;
   const leewardTableMaxDb = !leewardUsesTheta0 || pitch < 10 ? 4 : pitch >= 25 ? 0.3 : null;
   const dbOutOfRange = leewardTableMinDb !== null && (db < leewardTableMinDb || db > leewardTableMaxDb);
@@ -439,8 +439,7 @@ function renderPressureResults() {
   function netRows(surfaceLabel, cpeValues) {
     return cpeValues.flatMap((cpe) =>
       cpiValues.map((cpi) => {
-        const cshpExt = cpe; // Ka=Kc=Kl=Kp=1
-        const netCshp = cshpExt - cpi;
+        const netCshp = cpe - cpi; // Ka=Kc=Kl=Kp=1
         const pExt = windPressure(Vdes, cpe, Cdyn) / 1000;
         const pInt = windPressure(Vdes, cpi, Cdyn) / 1000;
         const pNet = windPressure(Vdes, netCshp, Cdyn) / 1000;
@@ -455,15 +454,42 @@ function renderPressureResults() {
     ...cpeSideWallZones().flatMap((z) => netRows(`Side wall, ${z.label}`, [z.cpe])),
   ];
 
-  const roofZones = pitch < 10 ? cpeRoofLowPitch(hd) : null;
-  const roofRows = roofZones
-    ? roofZones.flatMap((z) => netRows(`Roof, ${z.label}`, Array.isArray(z.values) ? z.values : []).map((r) => ({ ...r, note: z.note })))
-    : [];
+  let roofRows = [];
+  let roofTableRef = "";
+  let roofUnavailableNote = "";
 
-  function rowsToHtml(rows) {
-    return rows
-      .map(
-        (r) => `<tr>
+  if (pitch < 10) {
+    const roofZones = cpeRoofLowPitch(hd);
+    roofRows = roofZones.flatMap((z) => netRows(`Roof, ${z.label}`, Array.isArray(z.values) ? z.values : []).map((r) => ({ ...r, note: z.note })));
+    roofTableRef = "Table 5.3(A)";
+  } else if (pitch <= 45 && ridgeTheta === 0) {
+    const upwindPair = cpeRoofUpwindPitched(hd, pitch);
+    roofRows = netRows("Roof, windward (upwind) slope", upwindPair);
+    if (roofType === "monoslope") {
+      roofTableRef = "Table 5.3(B) (single slope)";
+    } else {
+      const downwindVal = cpeRoofDownwindPitched(hd, pitch, bOverD);
+      roofRows = roofRows.concat(netRows("Roof, leeward (downwind) slope", [downwindVal]));
+      if (roofType === "hip") {
+        roofRows = roofRows.concat(netRows("Roof, hip-end slopes (R)", [downwindVal]));
+      }
+      roofTableRef = "Tables 5.3(B)/(C)";
+    }
+  } else if (pitch <= 45 && ridgeTheta === 90) {
+    roofUnavailableNote = `Roof pitch ≥ 10° with wind parallel to the ridge (crosswind): AS/NZS 1170.2 Tables 5.3(B)/(C) only tabulate the
+      upwind/downwind case (wind normal to ridge) for this pitch range &mdash; source a C<sub>p,e</sub> value from the Standard directly
+      for this direction.`;
+  } else {
+    roofUnavailableNote = `Roof pitch &gt; 45°: outside the tabulated range of Table 5.3(B) &mdash; source a C<sub>p,e</sub> value directly.`;
+  }
+
+  return { db, hd, bOverD, cpeLw, cpiLabel, dbOutOfRange, leewardTableMinDb, leewardTableMaxDb, wallRows, roofRows, roofTableRef, roofUnavailableNote };
+}
+
+function rowsToHtml(rows) {
+  return rows
+    .map(
+      (r) => `<tr>
           <td>${r.surfaceLabel}</td>
           <td class="num">${cpeSpan(r.cpe)}</td>
           <td class="num">${cpeSpan(r.cpi)}</td>
@@ -471,65 +497,130 @@ function renderPressureResults() {
           <td class="num">${fmt(r.pInt, 2)}</td>
           <td class="num">${fmt(r.pNet, 2)}</td>
         </tr>${r.note ? `<tr><td colspan="6" class="note">${r.note}</td></tr>` : ""}`
-      )
-      .join("");
+    )
+    .join("");
+}
+
+function renderPressureResults() {
+  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType").value);
+  if (type && !type.supported) return; // defence-in-depth -- the button is disabled for this case
+
+  const Cdyn = parseFloat($("pCdyn").value) || 1.0;
+  const bldB = parseFloat($("bldB").value) || 1;
+  const bldD = parseFloat($("bldD").value) || 1;
+  const h = parseFloat($("bldH").value) || 1;
+  const pitch = parseFloat($("roofPitch").value) || 0;
+  const roofType = $("roofType").value || "gable";
+  const cpiCase = CPI_CASES.find((c) => c.id === $("cpiCase").value);
+
+  // Prefer the 4 axis-specific Vdes,theta values from Section 2; fall back to the single manually
+  // entered value (for all 4 axes) if Section 2 hasn't been run yet in this session.
+  let axesSource;
+  let usingFallback = false;
+  if (lastDesignResults && lastDesignResults.length === 4) {
+    axesSource = lastDesignResults;
+  } else {
+    usingFallback = true;
+    const fallbackVdes = parseFloat($("pVdes").value) || 0;
+    const labels = ["θ=0° (front)", "θ=90°", "θ=180°", "θ=270°"];
+    axesSource = labels.map((label, i) => ({ label, theta: [0, 90, 180, 270][i], Vdes: fallbackVdes }));
   }
+
+  // Axis index 0/2 = front/back (wind normal to ridge, onto W); index 1/3 = sides (wind parallel to
+  // ridge, onto L) -- so b/d swap relative to the building's own W/L for the side axes.
+  const axisResults = axesSource.map((axis, i) => {
+    const ridgeTheta = i % 2 === 0 ? 0 : 90;
+    const b = ridgeTheta === 0 ? bldB : bldD;
+    const d = ridgeTheta === 0 ? bldD : bldB;
+    const calc = computeAxisPressures({ Vdes: axis.Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase });
+    return { label: axis.label, bearing: axis.theta, Vdes: axis.Vdes, ridgeTheta, ...calc };
+  });
+
+  // Governing (largest-magnitude) net pressure across all 4 axes, for a quick top-line summary.
+  function governing(rows) {
+    if (!rows.length) return null;
+    return rows.reduce((worst, r) => (Math.abs(r.pNet) > Math.abs(worst.row.pNet) ? { row: r } : worst), { row: rows[0] }).row;
+  }
+  const allWallRows = axisResults.flatMap((a) => a.wallRows.map((r) => ({ ...r, axisLabel: a.label })));
+  const allRoofRows = axisResults.flatMap((a) => a.roofRows.map((r) => ({ ...r, axisLabel: a.label })));
+  const governingWall = governing(allWallRows);
+  const governingRoof = governing(allRoofRows);
 
   const el = $("pressureResults");
   el.hidden = false;
 
-  let dbNote = "";
-  if (dbOutOfRange) {
-    dbNote = `<div class="warning">d/b = ${fmt(db, 2)} is outside the tabulated range (${leewardTableMinDb}&ndash;${leewardTableMaxDb})
-      for the leeward wall C<sub>p,e</sub> lookup (Table 5.2(B)) &mdash; the nearest tabulated boundary value has been used.
-      Check Table 5.2(B) directly if this ratio is far outside the tabulated range.</div>`;
-  }
+  const fallbackNote = usingFallback
+    ? `<div class="warning">Section 2 hasn't been run yet in this session &mdash; using the manually entered V<sub>des,θ</sub>
+        (${fmt(parseFloat($("pVdes").value) || 0, 1)} m/s) for all 4 directions. Run "Calculate wind speeds" above for the
+        direction-specific governing speeds.</div>`
+    : "";
 
-  let pitchNote = "";
-  if (pitch >= 10) {
-    pitchNote = `<div class="warning">Roof pitch ≥ 10°: automatic C<sub>p,e</sub> lookup is not implemented for this range
-      (Tables 5.3(B)/(C)). Source a C<sub>p,e</sub> value from AS/NZS 1170.2 directly and compute
-      p = 0.5 &times; 1.2 &times; V<sub>des,θ</sub>&sup2; &times; C<sub>p,e</sub> &times; C<sub>dyn</sub> manually.</div>`;
-  }
+  const summaryPills = `
+    <div class="pill">Roof: ${ROOF_TYPES.find((r) => r.id === roofType)?.label || roofType}</div>
+    ${governingWall ? `<div class="pill">Governing wall: <strong>${fmt(governingWall.pNet, 2)} kPa</strong> (${governingWall.surfaceLabel}, ${governingWall.axisLabel})</div>` : ""}
+    ${governingRoof ? `<div class="pill">Governing roof: <strong>${fmt(governingRoof.pNet, 2)} kPa</strong> (${governingRoof.surfaceLabel}, ${governingRoof.axisLabel})</div>` : ""}
+  `;
+
+  const axisBlocks = axisResults
+    .map((a, i) => {
+      let dbNote = "";
+      if (a.dbOutOfRange) {
+        dbNote = `<div class="warning">d/b = ${fmt(a.db, 2)} is outside the tabulated range (${a.leewardTableMinDb}&ndash;${a.leewardTableMaxDb})
+          for the leeward wall C<sub>p,e</sub> lookup (Table 5.2(B)) &mdash; the nearest tabulated boundary value has been used.</div>`;
+      }
+      let roofSection = "";
+      if (a.roofRows.length) {
+        roofSection = `
+          <h4>Roof pressures <span class="ref">(${a.roofTableRef})</span></h4>
+          <table>
+            <thead><tr><th>Zone</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
+              <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
+            <tbody>${rowsToHtml(a.roofRows)}</tbody>
+          </table>`;
+      } else if (a.roofUnavailableNote) {
+        roofSection = `<div class="warning">${a.roofUnavailableNote}</div>`;
+      }
+
+      return `
+        <details class="subpanel" ${i === 0 ? "open" : ""}>
+          <summary>${a.label} &mdash; bearing ${fmt(a.bearing, 0)}°, V<sub>des,θ</sub> = ${fmt(a.Vdes, 1)} m/s
+            <span class="ref">(${a.ridgeTheta === 0 ? "wind normal to ridge, onto W" : "wind parallel to ridge, onto L"})</span></summary>
+          <div class="pill">d/b = ${fmt(a.db, 2)}</div>
+          <div class="pill">h/d = ${fmt(a.hd, 2)}</div>
+          <div class="pill">C<sub>p,i</sub> case: ${a.cpiLabel}</div>
+          ${dbNote}
+          <h4>Wall pressures <span class="ref">(Tables 5.2(A)&ndash;(C))</span></h4>
+          <table>
+            <thead><tr><th>Surface</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
+              <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
+            <tbody>${rowsToHtml(a.wallRows)}</tbody>
+          </table>
+          ${roofSection}
+        </details>`;
+    })
+    .join("");
 
   let roofTypeNote = "";
   if (roofType === "hip") {
     roofTypeNote = `<div class="note"><strong>Hip roof:</strong> the leeward wall C<sub>p,e</sub> uses the θ&nbsp;=&nbsp;0° values at
-      every wind direction (Table 5.2(B), Note 3). For pitch ≥ 10°, the hip-end (R) roof slopes are covered by
-      Table 5.3(C), which is not calculated here.</div>`;
+      every wind direction (Table 5.2(B), Note 3), and the hip-end (R) slopes use the same value as the downwind slope
+      (Table 5.3(C), Clause 5.4.1(c)).</div>`;
   } else if (roofType === "monoslope") {
-    roofTypeNote = `<div class="note"><strong>Monoslope / skillion roof:</strong> there is no ridge &mdash; "θ = 0°" means wind up or
-      down the slope and "θ = 90°" means wind across it. For pitch &lt; 10° the roof C<sub>p,e</sub> values from Table 5.3(A) shown
-      below apply to the single slope; Table 5.2(B) does not tabulate a monoslope leeward wall, so the gable value is used as an
-      approximation &mdash; confirm against the Standard.</div>`;
+    roofTypeNote = `<div class="note"><strong>Monoslope / skillion roof:</strong> there is no ridge &mdash; the "front/back" axes mean wind
+      up or down the single slope and the "side" axes mean wind across it. Table 5.2(B) does not tabulate a monoslope leeward wall, so
+      the gable value is used there as an approximation &mdash; confirm against the Standard. For pitch ≥ 10°, only the up/down-slope
+      axes are calculated (see each axis below); the across-slope axes are not covered by Tables 5.3(B)/(C).</div>`;
   }
 
   el.innerHTML = `
-    <div class="pill">d/b = ${fmt(db, 2)}</div>
-    <div class="pill">h/d = ${fmt(hd, 2)}</div>
-    <div class="pill">Roof: ${ROOF_TYPES.find((r) => r.id === roofType)?.label || roofType}</div>
-    <div class="pill">C<sub>p,i</sub> case: ${cpiLabel}</div>
-    ${dbNote}
-    ${pitchNote}
+    ${fallbackNote}
+    <div>${summaryPills}</div>
     ${roofTypeNote}
-    <h3>Wall pressures <span class="ref">(Tables 5.2(A)&ndash;(C))</span></h3>
-    <table>
-      <thead><tr><th>Surface</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
-        <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
-      <tbody>${rowsToHtml(wallRows)}</tbody>
-    </table>
-    ${
-      roofRows.length
-        ? `<h3>Roof pressures, pitch &lt;10° <span class="ref">(Table 5.3(A))</span></h3>
-    <table>
-      <thead><tr><th>Zone</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
-        <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
-      <tbody>${rowsToHtml(roofRows)}</tbody>
-    </table>`
-        : ""
-    }
+    ${axisBlocks}
     <p class="note">p = 0.5 &times; ρ<sub>air</sub>(1.2 kg/m&sup3;) &times; V<sub>des,θ</sub>&sup2; &times; C<sub>shp</sub> &times; C<sub>dyn</sub>
-      (Equation 2.4(1)). Positive = pressure toward the surface, negative = suction. K<sub>a</sub>=K<sub>c</sub>=K<sub>l</sub>=K<sub>p</sub>=1.0 assumed.</p>
+      (Equation 2.4(1)). Positive = pressure toward the surface, negative = suction. K<sub>a</sub>=K<sub>c</sub>=K<sub>l</sub>=K<sub>p</sub>=1.0 assumed.
+      d/b and h/d are both relative to the wind direction for that axis (b = across-wind, d = along-wind), so they differ between the
+      front/back and side axes.</p>
   `;
 }
 

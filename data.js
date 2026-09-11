@@ -153,6 +153,62 @@ const CPE_LEEWARD_THETA0_PITCH25 = { db: [0.1, 0.3], cpe: [-0.75, -0.5] };
 // theta = 90 deg (wind parallel to ridge), gable roof, any pitch: same as low-pitch d/b table above
 const CPE_LEEWARD_THETA90 = CPE_LEEWARD_THETA0_LOWPITCH;
 
+// Table 5.3(B) -- Roof Cp,e, upwind (windward) slope, pitch >= 10 deg. [more-negative, less-negative]
+// pairs (both load cases must be checked, Clause 5.4.1). Rows = h/d, columns = roof pitch (deg).
+// Sourced from the Standard's own page via pdftotext's `-table` mode (column-aligned extraction,
+// not the usual linearised text) and cross-checked against an independent secondary source for the
+// pitch=10/15 deg values before use.
+const CPE_ROOF_UPWIND_PITCHED = {
+  hd: [0.25, 0.5, 1.0],
+  pitch: [10, 15, 20, 25, 30, 35],
+  rows: [
+    [
+      [-0.7, -0.3],
+      [-0.5, 0.0],
+      [-0.3, 0.2],
+      [-0.2, 0.3],
+      [-0.2, 0.4],
+      [0.0, 0.5],
+    ],
+    [
+      [-0.9, -0.4],
+      [-0.7, -0.3],
+      [-0.4, 0.0],
+      [-0.3, 0.2],
+      [-0.2, 0.3],
+      [-0.2, 0.4],
+    ],
+    [
+      [-1.3, -0.6],
+      [-1.0, -0.5],
+      [-0.7, -0.3],
+      [-0.5, 0.0],
+      [-0.3, 0.2],
+      [-0.2, 0.3],
+    ],
+  ],
+};
+// Pitch = 45 deg, all h/d: Cp,e = 0 or 0.8 sin(alpha) (h/d-independent in the Standard).
+
+// Table 5.3(C) -- Roof Cp,e, downwind slope (D), and crosswind slope (R) for hip roofs, pitch >= 10 deg.
+// A single value per cell (always suction) -- rows = h/d, columns = roof pitch 10/15/20 deg.
+// Clause note (b): pair the more/less-negative Table 5.3(B) upwind value with this SAME downwind
+// value for the two load cases. Clause note (c): for hip roofs, apply this value to both hip-end (R)
+// slopes as well as the downwind (D) slope.
+const CPE_ROOF_DOWNWIND_PITCHED = {
+  hd: [0.25, 0.5, 1.0],
+  pitch: [10, 15, 20],
+  rows: [
+    [-0.3, -0.5, -0.6],
+    [-0.5, -0.5, -0.6],
+    [-0.7, -0.6, -0.6],
+  ],
+};
+// Pitch >= 25 deg, all h/d: Cp,e depends on b/d (building width/depth in the current wind direction):
+//   b/d <= 3            -> -0.6
+//   3 < b/d < 8          -> -0.06 (7 + b/d)
+//   b/d >= 8             -> -0.9
+
 // Roof type -- Table 5.2(B) distinguishes "hip or gable" (theta=0) from "gable" (theta=90), with
 // Note 3: for hip roofs use the theta=0 values even at theta=90. Table 5.3(A) covers "gable roofs"
 // and "monoslope roofs" for pitch < 10 deg. Monoslope has no ridge.

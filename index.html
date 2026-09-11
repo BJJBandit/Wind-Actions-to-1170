@@ -72,17 +72,12 @@
         <input type="number" id="roofPitch" min="0" max="45" step="1" value="5" />
       </div>
       <div class="field">
-        <label for="windTheta">Wind direction relative to ridge</label>
-        <select id="windTheta">
-          <option value="0">θ = 0° &ndash; normal to ridge (onto width b)</option>
-          <option value="90">θ = 90° &ndash; parallel to ridge (onto depth d)</option>
-        </select>
-      </div>
-      <div class="field">
         <label for="azimuth">Building axis (θ=0°) bearing from true North (°)</label>
         <select id="azimuth"></select>
       </div>
     </div>
+    <p class="hint">Ridge runs parallel to W (across the θ=0° wind, Section 2). Section 3 below calculates pressures for all 4
+      building orthogonal axes automatically, so wind direction relative to the ridge no longer needs to be picked here.</p>
 
     <div class="diagram-row">
     <div class="compass-wrap">
@@ -280,15 +275,18 @@
   <!-- ============================= SECTION: DESIGN WIND PRESSURE ============================= -->
   <section class="card">
     <h2>3. Design wind pressure &ndash; enclosed rectangular building <span class="ref">(Section 5, simplified)</span></h2>
-    <p class="hint">Walls are fully covered (Tables 5.2(A)&ndash;(C)). Roofs are only covered for pitch &lt;10&deg; (Table 5.3(A)) &mdash; for
-      pitched roofs &ge;10&deg;, enter a Cp,e value you've sourced from Tables 5.3(B)/(C) directly. K<sub>a</sub>, K<sub>c</sub>, K<sub>l</sub>, K<sub>p</sub>
-      are all taken as 1.0 (no area reduction / local cladding factors) &mdash; apply these separately for cladding and fixing design.</p>
+    <p class="hint">Calculates wall and roof pressures for <strong>all 4 building orthogonal axes</strong> (Clause 2.5.2's minimum), each
+      using its own governing V<sub>des,θ</sub> from Section&nbsp;2. Walls are fully covered (Tables 5.2(A)&ndash;(C)) at every axis. Roofs
+      are covered for all pitches up to 45&deg; when wind is normal to the ridge (front/back axes, Tables 5.3(A)/(B)/(C)); for pitch
+      &ge;10&deg; with wind parallel to the ridge (side axes), source a C<sub>p,e</sub> value from the Standard directly &mdash; see the
+      note on each axis below. K<sub>a</sub>, K<sub>c</sub>, K<sub>l</sub>, K<sub>p</sub> are all taken as 1.0 (no area reduction / local
+      cladding factors) &mdash; apply these separately for cladding and fixing design.</p>
 
     <div id="buildingTypeGate" class="warning" hidden></div>
 
     <div class="grid">
       <div class="field">
-        <label for="pVdes">Governing design wind speed, V<sub>des,θ</sub> (m/s)</label>
+        <label for="pVdes">Fallback design wind speed, V<sub>des,θ</sub> (m/s) <span class="ref">(used only if Section 2 hasn't been run)</span></label>
         <input type="number" id="pVdes" min="0" step="0.1" value="40" />
       </div>
       <div class="field">
