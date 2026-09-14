@@ -52,9 +52,29 @@ suitably qualified engineer.
   5.4.1(c)). The compass diagram draws the ridge (and hip lines) accordingly, and the isometric view
   redraws the whole roof form.
 - Internal pressure coefficient `Cp,i` cases from Table 5.1(A) (small-opening/impermeable-roof cases)
+- **Permeable cladding reduction factor `Kp`** (Clause 5.4.5, Table 5.8) — see "Permeable cladding
+  reduction factor" below
 - Net pressure `p = 0.5 × ρ_air × Vdes,θ² × Cshp × Cdyn` (Equation 2.4(1))
 - A **plan and elevation pressure diagram** (direction picked from a dropdown) that redraws from the
   same per-axis results — see "Plan & elevation pressure diagrams" below.
+
+## Permeable cladding reduction factor (Kp)
+
+A "Roof / side wall cladding" selector in the Building section switches between standard/impermeable
+(`Kp = 1.0`, the default) and permeable cladding with a 0.1–1% open-area ratio, which lets `Kp` be
+taken from Table 5.8 for **negative (suction) pressure only** — a positive `Cp,e` is never reduced, and
+neither are the windward/leeward walls, since Clause 5.4.5 only covers roofs and side walls.
+
+Table 5.8's zones are fractions of `da` (the along-wind depth of the surface) — a different basis than
+the existing `h`-multiple zones used for `Cp,e` (Table 5.2(C) for side walls, Table 5.3(A) for low-pitch
+roofs). Rather than re-zone every surface to match, each existing `Cp,e` zone gets a single representative
+`Kp`, looked up at that zone's own midpoint distance from the windward edge, expressed as a fraction of
+`da`. For the pitch ≥ 10° upwind/downwind roof slopes (Tables 5.3(B)/(C)), which aren't already
+sub-divided into zones, the windward half of the plan depth stands in for the upwind (and a hip roof's
+hip-end) slope and the leeward half for the downwind slope — a coarser approximation than the fine
+zoning Table 5.8 assumes, and flagged as such in the results. A `Kp` column in the pressure tables shows
+the value used for every row (1.00 where it doesn't apply); the `Cp,e` column always shows the
+Standard's raw tabulated value, not the `Kp`-reduced one, so the tables stay traceable back to source.
 
 ## Plan & elevation pressure diagrams
 
@@ -160,9 +180,9 @@ To avoid presenting numbers with false confidence, the following are **not** aut
   procedure, which is not implemented.
 - **Appendices A–E** — circular bins/silos/tanks, freestanding walls/hoardings/canopies, exposed
   members/lattice towers, flags/circular shapes, and accelerations/rotational velocities.
-- **Ka, Kc, Kl, Kp** (area reduction, action combination, local pressure, porous cladding factors) are
-  all taken as 1.0. These matter for cladding/fixing design — apply them separately per Clauses
-  5.4.2–5.4.5.
+- **Ka, Kc, Kl** (area reduction, action combination, local pressure factors) are all taken as 1.0.
+  These matter for cladding/fixing design — apply them separately per Clauses 5.4.2–5.4.4.
+  **Kp (permeable cladding reduction factor, Clause 5.4.5/Table 5.8)** *is* calculated — see below.
 - **Pitched roofs ≥ 10° with wind parallel to the ridge** (the two "side" building axes) — Tables
   5.3(B)/(C) only tabulate the upwind/downwind case (wind normal to the ridge, the "front/back" axes),
   which is what's calculated. The crosswind case isn't given a simple table in Section 5; source

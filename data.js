@@ -396,3 +396,15 @@ const IMPORTANCE_LEVELS = [
   // just prompts the user to set R directly below instead of picking one of the four defaults.
   { id: "other", label: "Other — not IL1–4 (set R directly below)", ariUls: null },
 ];
+
+// Table 5.8 -- Permeable cladding reduction factor (Kp), Clause 5.4.5. Applies ONLY to roofs and
+// side walls (not windward/leeward walls), and ONLY to negative (suction) Cp,e -- the Standard
+// says it "may be used for negative pressure" where the surface is permeable cladding with an
+// open-area ratio between 0.1% and 1%. Zones are fractions of da, the along-wind depth of the
+// surface (0 = windward edge, 1 = trailing edge); Kp = 1.0 everywhere else.
+const KP_PERMEABLE_TABLE = [
+  { from: 0, to: 0.2, kp: 0.9 },
+  { from: 0.2, to: 0.4, kp: 0.8 },
+  { from: 0.4, to: 0.8, kp: 0.7 },
+  { from: 0.8, to: 1.0, kp: 0.8 },
+];

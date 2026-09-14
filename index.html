@@ -75,9 +75,18 @@
         <label for="azimuth">Building axis (θ=0°) bearing from true North (°)</label>
         <select id="azimuth"></select>
       </div>
+      <div class="field">
+        <label for="claddingType">Roof / side wall cladding <span class="ref">(Clause 5.4.5)</span></label>
+        <select id="claddingType">
+          <option value="impermeable" selected>Standard / impermeable (K<sub>p</sub> = 1.0)</option>
+          <option value="permeable">Permeable, 0.1&ndash;1% open area (Table 5.8)</option>
+        </select>
+      </div>
     </div>
     <p class="hint">Ridge runs parallel to W (across the θ=0° wind, Section 2). Section 3 below calculates pressures for all 4
-      building orthogonal axes automatically, so wind direction relative to the ridge no longer needs to be picked here.</p>
+      building orthogonal axes automatically, so wind direction relative to the ridge no longer needs to be picked here. The
+      permeable cladding reduction factor (K<sub>p</sub>) applies only to roof and side wall <em>suction</em> zones (Table 5.8)
+      &mdash; windward and leeward walls are unaffected, and positive (windward) roof/side pressure is never reduced by K<sub>p</sub>.</p>
 
     <div class="diagram-row">
     <div class="compass-wrap">
