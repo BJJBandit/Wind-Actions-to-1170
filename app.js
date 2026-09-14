@@ -75,6 +75,11 @@ function populateLocations() {
     const lead = loc.confidence === "high" ? "Region auto-filled." : "Region auto-filled (medium confidence — please verify).";
     noteEl.innerHTML = `<div class="${cls}"><strong>${lead}</strong> ${loc.note} Region set to <strong>${loc.region}</strong> — you can override it in the Region dropdown above.</div>`;
   });
+
+  // Default the calculator to a real starting example (Hobart -> Region A4) rather than an
+  // unset "pick manually" dropdown -- still fully overridable via either dropdown.
+  sel.value = "Hobart, TAS";
+  sel.dispatchEvent(new Event("change"));
 }
 
 function populateAzimuth() {
