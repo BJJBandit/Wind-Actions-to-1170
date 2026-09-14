@@ -391,4 +391,8 @@ const IMPORTANCE_LEVELS = [
   { id: "IL2", label: "IL2 — normal structures (most buildings)", ariUls: 500 },
   { id: "IL3", label: "IL3 — higher consequence of failure (e.g. large assembly buildings)", ariUls: 1000 },
   { id: "IL4", label: "IL4 — post-disaster / essential structures (e.g. hospitals, emergency services)", ariUls: 2000 },
+  // Not every structure fits neatly into IL1-4 (e.g. a temporary structure, or one assigned a
+  // project-specific ARI by a performance-based assessment) -- this doesn't suggest an ARI, it
+  // just prompts the user to set R directly below instead of picking one of the four defaults.
+  { id: "other", label: "Other — not IL1–4 (set R directly below)", ariUls: null },
 ];

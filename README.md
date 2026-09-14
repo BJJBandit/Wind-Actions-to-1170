@@ -124,14 +124,19 @@ This is an AS/NZS 1170.0 / National Construction Code (NCC) concept, not part of
 1170.2 only supplies wind speeds for a given average recurrence interval (ARI); it's 1170.0/the NCC that
 assigns an importance level to a structure and, from that, the ARI to design for. The R values offered
 (IL1→100, IL2→500, IL3→1000, IL4→2000 years) are the commonly-published ULS defaults for a **50-year
-design working life**, not read from a specific NCC edition in this session. Selecting one pre-fills the
-ARI field in Section 2 (still fully editable) with a prompt to confirm:
+design working life**, not read from a specific NCC edition in this session. Defaults to **IL2** on load,
+so the ARI field already reflects it (R = 500 years) without needing to touch this dropdown. Selecting
+one pre-fills the ARI field in Section 2 (still fully editable) with a prompt to confirm:
 
 - the importance level classification itself against the current NCC's criteria for the actual building,
 - the exact R value against the current NCC/AS 1170.0 edition, particularly for a design working life
   other than 50 years, and
 - that serviceability limit state design uses a separate, shorter ARI (commonly 20–25 years) which this
   selector does not set.
+
+A fifth option, **"Other"**, covers structures that don't fit IL1–4 (a temporary structure, a
+performance-based assessment, a design working life other than 50 years) — it deliberately doesn't
+suggest an ARI; it leaves whatever R is already set and prompts picking one directly in the ARI dropdown.
 
 ## Isometric view
 

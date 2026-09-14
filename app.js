@@ -147,6 +147,11 @@ function populateImportanceLevels() {
       note.innerHTML = "";
       return;
     }
+    if (il.ariUls === null) {
+      note.innerHTML = `<div class="note">"Other" doesn't suggest an ARI &mdash; pick the R value directly in the dropdown below
+        (e.g. from a performance-based assessment, a temporary structure, or a design working life other than 50 years).</div>`;
+      return;
+    }
     $("ari").value = String(il.ariUls);
     $("ari").dispatchEvent(new Event("change"));
     note.innerHTML = `<div class="warning">Set R&nbsp;=&nbsp;${il.ariUls}&nbsp;years below, the commonly-published ULS default for
@@ -155,6 +160,11 @@ function populateImportanceLevels() {
       building, especially if the design working life isn't 50 years. Serviceability limit state design uses a separate, shorter R
       (commonly 20&ndash;25 years) not set by this selector.</div>`;
   });
+
+  // Default to IL2 (the common case) so the ARI below already reflects it on page load, rather
+  // than requiring the user to touch this dropdown first.
+  sel.value = "IL2";
+  sel.dispatchEvent(new Event("change"));
 }
 
 function populateBuildingSizes() {
@@ -1368,10 +1378,10 @@ document.addEventListener("DOMContentLoaded", () => {
   populateLocations();
   populateAzimuth();
   populateBuildingTypes();
+  populateAri();
   populateImportanceLevels();
   populateRoofTypes();
   populateBuildingSizes();
-  populateAri();
   populateCpiCases();
   populatePressureDiagramAxis();
   wireTopographyControls();
