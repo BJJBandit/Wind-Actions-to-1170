@@ -433,11 +433,10 @@ let lastAxisResults = null;
 // where wind is parallel to the ridge, that's the building's W and L swapped relative to the ridge-
 // normal axes, since AS/NZS 1170.2's d/b (leeward wall) and h/d (roof) ratios are always defined
 // relative to the current wind direction, not fixed to the building's W/L labelling.
-function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase, claddingPermeable }) {
+function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase }) {
   const db = d / b;
   const bOverD = b / d;
   const hd = h / d;
-  const da = d; // Clause 5.4.5: da is the along-wind depth of the surface -- same as d for both roof and side walls
 
   const cpeWw = cpeWindwardWall(h);
   const cpeLw = cpeLeewardWall({ theta: ridgeTheta, pitch, db, roofType });
@@ -457,35 +456,22 @@ function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta
     cpiLabel = cpiValues.map((v) => v.toFixed(2)).join(" or ");
   }
 
-  // `kp` (Table 5.8, Clause 5.4.5) is only ever passed for roof/side-wall zones, and only reduces
-  // negative (suction) Cp,e -- a positive value on those surfaces is left at Kp=1 regardless.
-  function netRows(surfaceLabel, cpeValues, kp = 1.0) {
-    return cpeValues.flatMap((cpeRaw) => {
-      const kpEff = claddingPermeable && cpeRaw < 0 ? kp : 1.0;
-      const cpe = round2(cpeRaw * kpEff);
-      return cpiValues.map((cpi) => {
-        const netCshp = cpe - cpi; // Ka=Kc,e=Kl=1
+  function netRows(surfaceLabel, cpeValues) {
+    return cpeValues.flatMap((cpe) =>
+      cpiValues.map((cpi) => {
+        const netCshp = cpe - cpi; // Ka=Kc=Kl=Kp=1
         const pExt = windPressure(Vdes, cpe, Cdyn) / 1000;
         const pInt = windPressure(Vdes, cpi, Cdyn) / 1000;
         const pNet = windPressure(Vdes, netCshp, Cdyn) / 1000;
-        return { surfaceLabel, cpeRaw, cpe, kp: kpEff, cpi, pExt, pInt, pNet };
-      });
-    });
-  }
-
-  // Representative Kp for a zone spanning fromM to toM (metres from the windward edge).
-  function kpFor(fromM, toM) {
-    return permeableCladdingKp(zoneKpFraction(fromM, toM, da));
+        return { surfaceLabel, cpe, cpi, pExt, pInt, pNet };
+      })
+    );
   }
 
   const wallRows = [
-    ...netRows("Windward wall", [cpeWw]), // Kp doesn't apply (Clause 5.4.5: roofs and side walls only)
-    ...netRows("Leeward wall", [cpeLw]), // ditto
-    ...cpeSideWallZones().flatMap((z) => {
-      const fromM = z.from * h;
-      const toM = z.to === Infinity ? Infinity : z.to * h;
-      return netRows(`Side wall, ${z.label}`, [z.cpe], kpFor(fromM, toM));
-    }),
+    ...netRows("Windward wall", [cpeWw]),
+    ...netRows("Leeward wall", [cpeLw]),
+    ...cpeSideWallZones().flatMap((z) => netRows(`Side wall, ${z.label}`, [z.cpe])),
   ];
 
   let roofRows = [];
@@ -494,24 +480,18 @@ function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta
 
   if (pitch < 10) {
     const roofZones = cpeRoofLowPitch(hd);
-    roofRows = roofZones.flatMap((z) => {
-      const fromM = z.from * h;
-      const toM = z.to === Infinity ? Infinity : z.to * h;
-      return netRows(`Roof, ${z.label}`, Array.isArray(z.values) ? z.values : [], kpFor(fromM, toM)).map((r) => ({ ...r, note: z.note }));
-    });
+    roofRows = roofZones.flatMap((z) => netRows(`Roof, ${z.label}`, Array.isArray(z.values) ? z.values : []).map((r) => ({ ...r, note: z.note })));
     roofTableRef = "Table 5.3(A)";
   } else if (pitch <= 45 && ridgeTheta === 0) {
     const upwindPair = cpeRoofUpwindPitched(hd, pitch);
-    // Upwind slope spans the windward half of the plan depth; downwind/hip-end the other half --
-    // an approximation for Kp's zone lookup, which otherwise assumes fine along-wind zoning.
-    roofRows = netRows("Roof, windward (upwind) slope", upwindPair, kpFor(0, d / 2));
+    roofRows = netRows("Roof, windward (upwind) slope", upwindPair);
     if (roofType === "monoslope") {
       roofTableRef = "Table 5.3(B) (single slope)";
     } else {
       const downwindVal = cpeRoofDownwindPitched(hd, pitch, bOverD);
-      roofRows = roofRows.concat(netRows("Roof, leeward (downwind) slope", [downwindVal], kpFor(d / 2, d)));
+      roofRows = roofRows.concat(netRows("Roof, leeward (downwind) slope", [downwindVal]));
       if (roofType === "hip") {
-        roofRows = roofRows.concat(netRows("Roof, hip-end slopes (R)", [downwindVal], kpFor(d / 2, d)));
+        roofRows = roofRows.concat(netRows("Roof, hip-end slopes (R)", [downwindVal]));
       }
       roofTableRef = "Tables 5.3(B)/(C)";
     }
@@ -531,13 +511,12 @@ function rowsToHtml(rows) {
     .map(
       (r) => `<tr>
           <td>${r.surfaceLabel}</td>
-          <td class="num">${cpeSpan(r.cpeRaw)}</td>
-          <td class="num">${fmt(r.kp, 2)}</td>
+          <td class="num">${cpeSpan(r.cpe)}</td>
           <td class="num">${cpeSpan(r.cpi)}</td>
           <td class="num">${fmt(r.pExt, 2)}</td>
           <td class="num">${fmt(r.pInt, 2)}</td>
           <td class="num">${fmt(r.pNet, 2)}</td>
-        </tr>${r.note ? `<tr><td colspan="7" class="note">${r.note}</td></tr>` : ""}`
+        </tr>${r.note ? `<tr><td colspan="6" class="note">${r.note}</td></tr>` : ""}`
     )
     .join("");
 }
@@ -553,7 +532,6 @@ function renderPressureResults() {
   const pitch = parseFloat($("roofPitch").value) || 0;
   const roofType = $("roofType").value || "gable";
   const cpiCase = CPI_CASES.find((c) => c.id === $("cpiCase").value);
-  const claddingPermeable = $("claddingType")?.value === "permeable";
 
   // Prefer the 4 axis-specific Vdes,theta values from Section 2; fall back to the single manually
   // entered value (for all 4 axes) if Section 2 hasn't been run yet in this session.
@@ -574,7 +552,7 @@ function renderPressureResults() {
     const ridgeTheta = i % 2 === 0 ? 0 : 90;
     const b = ridgeTheta === 0 ? bldB : bldD;
     const d = ridgeTheta === 0 ? bldD : bldB;
-    const calc = computeAxisPressures({ Vdes: axis.Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase, claddingPermeable });
+    const calc = computeAxisPressures({ Vdes: axis.Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase });
     return { label: axis.label, bearing: axis.theta, Vdes: axis.Vdes, ridgeTheta, b, d, h, pitch, roofType, ...calc };
   });
   lastAxisResults = axisResults; // cached for the plan/elevation pressure diagrams
@@ -600,20 +578,9 @@ function renderPressureResults() {
 
   const summaryPills = `
     <div class="pill">Roof: ${ROOF_TYPES.find((r) => r.id === roofType)?.label || roofType}</div>
-    <div class="pill">Cladding: ${claddingPermeable ? "Permeable (Table 5.8 K<sub>p</sub> applied)" : "Standard / impermeable (K<sub>p</sub> = 1.0)"}</div>
     ${governingWall ? `<div class="pill">Governing wall: <strong>${fmt(governingWall.pNet, 2)} kPa</strong> (${governingWall.surfaceLabel}, ${governingWall.axisLabel})</div>` : ""}
     ${governingRoof ? `<div class="pill">Governing roof: <strong>${fmt(governingRoof.pNet, 2)} kPa</strong> (${governingRoof.surfaceLabel}, ${governingRoof.axisLabel})</div>` : ""}
   `;
-
-  const claddingNote = claddingPermeable
-    ? `<div class="note"><strong>Permeable cladding (Clause 5.4.5):</strong> K<sub>p</sub> is applied to negative (suction) roof and side
-        wall pressures only, from Table 5.8, using each zone's midpoint distance from the windward edge as a fraction of d<sub>a</sub>
-        (the along-wind depth). For the pitch ≥ 10° upwind/downwind roof slopes, which aren't already sub-divided into zones, the
-        windward half of the plan depth is used for the upwind (and hip-end) slope and the leeward half for the downwind slope — a
-        coarser approximation than the fine zoning Table 5.8 assumes. Windward and leeward walls are never reduced by K<sub>p</sub>,
-        and a positive C<sub>p,e</sub> on a roof/side zone is also left at K<sub>p</sub> = 1.0. Confirm your cladding genuinely has an
-        open-area ratio between 0.1% and 1% before relying on this reduction.</div>`
-    : "";
 
   const axisBlocks = axisResults
     .map((a, i) => {
@@ -627,7 +594,7 @@ function renderPressureResults() {
         roofSection = `
           <h4>Roof pressures <span class="ref">(${a.roofTableRef})</span></h4>
           <table>
-            <thead><tr><th>Zone</th><th class="num">C<sub>p,e</sub></th><th class="num">K<sub>p</sub></th><th class="num">C<sub>p,i</sub></th>
+            <thead><tr><th>Zone</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
               <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
             <tbody>${rowsToHtml(a.roofRows)}</tbody>
           </table>`;
@@ -645,7 +612,7 @@ function renderPressureResults() {
           ${dbNote}
           <h4>Wall pressures <span class="ref">(Tables 5.2(A)&ndash;(C))</span></h4>
           <table>
-            <thead><tr><th>Surface</th><th class="num">C<sub>p,e</sub></th><th class="num">K<sub>p</sub></th><th class="num">C<sub>p,i</sub></th>
+            <thead><tr><th>Surface</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
               <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
             <tbody>${rowsToHtml(a.wallRows)}</tbody>
           </table>
@@ -670,11 +637,9 @@ function renderPressureResults() {
     ${fallbackNote}
     <div>${summaryPills}</div>
     ${roofTypeNote}
-    ${claddingNote}
     ${axisBlocks}
     <p class="note">p = 0.5 &times; ρ<sub>air</sub>(1.2 kg/m&sup3;) &times; V<sub>des,θ</sub>&sup2; &times; C<sub>shp</sub> &times; C<sub>dyn</sub>
-      (Equation 2.4(1)). Positive = pressure toward the surface, negative = suction. K<sub>a</sub>=K<sub>c</sub>=K<sub>l</sub>=1.0 assumed;
-      K<sub>p</sub>${claddingPermeable ? " from Table 5.8 (see note above), applied only to roof/side-wall suction" : " = 1.0 (standard/impermeable cladding selected)"}.
+      (Equation 2.4(1)). Positive = pressure toward the surface, negative = suction. K<sub>a</sub>=K<sub>c</sub>=K<sub>l</sub>=K<sub>p</sub>=1.0 assumed.
       d/b and h/d are both relative to the wind direction for that axis (b = across-wind, d = along-wind), so they differ between the
       front/back and side axes.</p>
   `;

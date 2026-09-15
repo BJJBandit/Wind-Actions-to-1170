@@ -279,21 +279,3 @@ function cpeRoofDownwindPitched(hd, pitch, bOverD) {
   const rowResults = T.rows.map((row) => interpTable(clampedPitch, T.pitch, row));
   return round2(interpTable(hd, T.hd, rowResults));
 }
-
-// Table 5.8 -- permeable cladding reduction factor. `fraction` is a zone's representative position
-// as a fraction of da (0 = windward edge, 1 = trailing edge); the table is a step function, not
-// interpolated, matching how the other zone tables (e.g. Table 5.2(C)) are already treated.
-function permeableCladdingKp(fraction) {
-  const clamped = Math.max(0, Math.min(1, fraction));
-  const band = KP_PERMEABLE_TABLE.find((b) => clamped >= b.from && clamped <= b.to);
-  return band ? band.kp : KP_PERMEABLE_TABLE[KP_PERMEABLE_TABLE.length - 1].kp;
-}
-
-// Midpoint of a zone (fromM to toM, in metres from the windward edge) as a fraction of da. An
-// open-ended zone (toM = Infinity, e.g. Table 5.2(C)'s "> 3h") is capped at da itself, since
-// da is the full extent of the surface.
-function zoneKpFraction(fromM, toM, da) {
-  const cappedTo = Number.isFinite(toM) ? toM : da;
-  const mid = (fromM + cappedTo) / 2;
-  return da > 0 ? mid / da : 0;
-}
