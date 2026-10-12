@@ -216,7 +216,60 @@ const ROOF_TYPES = [
   { id: "gable", label: "Gable" },
   { id: "hip", label: "Hip" },
   { id: "monoslope", label: "Monoslope / skillion" },
+  // Troughed (inverted-V) roofs only have tabulated data for open buildings / free roofs
+  // (Table B.6) -- for an enclosed building the roof pressure is flagged rather than guessed.
+  { id: "troughed", label: "Troughed (inverted gable) — open buildings only" },
 ];
+
+// ---------------------------------------------------------------------------
+// Appendix B, Clause B.3 -- net pressure coefficients (Cp,n) for FREE ROOFS (open buildings).
+// Positive = net DOWNWARD pressure. Each cell is [a] or [a, b]: a single value, or a pair (a
+// negative and a positive load case -- the Standard requires ALL combinations of Cp,w with Cp,l to
+// be checked). Cp,w = windward half of the roof, Cp,l = leeward half. "empty" = goods/materials
+// under the roof block < 50% of the exposed cross-section, "blocked" = > 75%; in between is a
+// linear interpolation (Clause B.3.1). Sourced from the Standard's own Tables B.4(A), B.4(B),
+// B.5, B.6 via pdftotext's `-table` extraction mode.
+// ---------------------------------------------------------------------------
+
+// Table B.4(A) -- monoslope free roofs, 0.25 <= h/d <= 1. theta=0: wind up the slope (from the low
+// edge); theta=180: wind down the slope (from the high edge). Rows are roof pitch (deg).
+const FREE_ROOF_MONOSLOPE_A = {
+  pitch: [0, 15, 30],
+  theta0: {
+    wEmpty: [[-0.3, 0.4], [-1.0], [-2.2]],
+    wBlocked: [[-1.0, 0.4], [-1.5], [-2.7]],
+    lEmpty: [[-0.4, 0.0], [-0.6, 0.0], [-1.1, -0.2]],
+    lBlocked: [[-0.8, 0.4], [-1.0, 0.2], [-1.3, 0.0]],
+  },
+  theta180: {
+    wEmpty: [[-0.3, 0.4], [0.8], [1.6]],
+    wBlocked: [[-1.0, 0.4], [0.8], [1.6]],
+    lEmpty: [[-0.4, 0.0], [0.4], [0.8]],
+    lBlocked: [[-0.8, 0.4], [-0.2], [0.0]],
+  },
+};
+
+// Table B.4(B) -- monoslope free roofs, 0.05 <= h/d < 0.25: zones by distance x from the windward
+// edge. 0..1h uses Cp,w and 1h..2h uses Cp,l from Table B.4(A) at pitch 0 (theta=0); beyond 2h:
+const FREE_ROOF_MONOSLOPE_B_FAR = { empty: [-0.2, 0.2], blocked: [-0.4, 0.2] };
+
+// Table B.5 -- pitched (gable-like) free roofs, 0.25 <= h/d <= 1, theta=0 (symmetric).
+const FREE_ROOF_PITCHED = {
+  pitch: [15, 22.5, 30],
+  wEmpty: [[-0.3, 0.4], [-0.3, 0.6], [-0.3, 0.8]],
+  wBlocked: [[-1.2], [-0.9], [-0.5]],
+  lEmpty: [[-0.4, 0.0], [-0.6, 0.0], [-0.7, 0.0]],
+  lBlocked: [[-0.9], [-1.1], [-1.3]],
+};
+
+// Table B.6 -- troughed (inverted-V) free roofs, 0.25 <= h/d <= 1, theta=0 (symmetric).
+const FREE_ROOF_TROUGHED = {
+  pitch: [7.5, 15, 22.5],
+  wEmpty: [[-0.6, 0.4], [-0.6, 0.4], [-0.7, 0.3]],
+  wBlocked: [[-0.7], [-0.8], [-1.0]],
+  lEmpty: [[0.3], [0.5], [0.7]],
+  lBlocked: [[-0.3], [-0.2], [-0.2]],
+};
 
 // Table 5.2(C) -- Side wall Cp,e by horizontal distance from windward edge (in multiples of h)
 const CPE_SIDEWALL_ZONES = [
@@ -363,6 +416,7 @@ const BUILDING_SIZES = [
 // they describe a building's discrete faces (Clause 2.3), which a circular plan doesn't have.
 const BUILDING_TYPES = [
   { id: "enclosed", label: "Enclosed rectangular building", clause: "Section 5", supported: true, glyph: "rect", hasAxes: true },
+  { id: "open", label: "Open building (free roof)", clause: "Appendix B, Cl B.3", supported: true, glyph: "open", hasAxes: true },
   { id: "bins", label: "Circular bins, silos and tanks", clause: "Appendix A", supported: false, glyph: "circle", hasAxes: false },
   { id: "freestanding", label: "Freestanding walls, hoardings, canopies and roofs", clause: "Appendix B", supported: false, glyph: "wall", hasAxes: true },
   { id: "members", label: "Exposed structural members, frames and lattice towers", clause: "Appendix C", supported: false, glyph: "lattice", hasAxes: true },

@@ -93,6 +93,49 @@ function populateAzimuth() {
   sel.value = "0";
 }
 
+// A troughed (inverted gable) roof only has pressure coefficients as a free roof (Appendix B,
+// Table B.6) -- Section 5's enclosed-building tables don't cover it -- so it's only offered for
+// the open building type, and an existing selection falls back to gable when switching away.
+function syncRoofTypeOptions() {
+  const sel = $("roofType");
+  if (!sel) return;
+  const isOpen = $("buildingType")?.value === "open";
+  Array.from(sel.options).forEach((opt) => {
+    if (opt.value === "troughed") {
+      opt.disabled = !isOpen;
+      opt.hidden = !isOpen;
+    }
+  });
+  if (!isOpen && sel.value === "troughed") {
+    sel.value = "gable";
+    sel.dispatchEvent(new Event("change"));
+  }
+}
+
+// Section 3's heading/intro and the plan/elevation hints describe walls + enclosed-building tables;
+// swap them for the roof-only Appendix B wording when the open building type is selected.
+const pressureTextDefaults = {};
+function setPressureSectionText(isOpen) {
+  const ids = ["pressureTitle", "pressureTitleRef", "pressureIntro", "planHint", "elevHint"];
+  const openText = {
+    pressureTitle: "3. Design wind pressure &ndash; open building (free roof)",
+    pressureTitleRef: "(Appendix B, Cl B.3)",
+    pressureIntro: `Calculates roof net pressures C<sub>p,n</sub> for <strong>all 4 building orthogonal axes</strong> (Clause 2.5.2's
+      minimum), each using its own governing V<sub>des,θ</sub> from Section&nbsp;2. There are no walls and no internal pressure; the
+      coefficients come from Tables B.4(A)/(B) (monoslope), B.5 (pitched) and B.6 (troughed) and depend on the roof pitch, h/d and how
+      much of the space under the roof is blocked. Hip roofs have no free-roof table. K<sub>a</sub> and the local pressure factor K
+      (Table B.1) are taken as 1.0 &mdash; apply them separately for local-pressure (fixing) design.`,
+    planHint: "Plan view, wind from the top. The roof is split into its windward / leeward bands; small squares mark the support posts.",
+    elevHint: "Elevation (section) along the wind path, wind from the left. The roof line is coloured by band; posts shown at each end.",
+  };
+  ids.forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    if (!(id in pressureTextDefaults)) pressureTextDefaults[id] = el.innerHTML;
+    el.innerHTML = isOpen ? openText[id] : pressureTextDefaults[id];
+  });
+}
+
 function populateBuildingTypes() {
   const sel = $("buildingType");
   BUILDING_TYPES.forEach((t) => {
@@ -108,9 +151,21 @@ function populateBuildingTypes() {
     const note = $("buildingTypeNote");
     const calcBtn = $("calcPressure");
 
+    // Open buildings (free roofs): there's no enclosed volume, so no internal pressure -- the
+    // internal-pressure case is irrelevant -- but the blockage under the roof matters (Cl B.3.1).
+    const isOpen = !!type && type.id === "open";
+    $("blockageWrap").hidden = !isOpen;
+    $("cpiCase").disabled = isOpen;
+    $("cpiCase").title = isOpen ? "Not used for open buildings -- net pressure coefficients already combine both roof faces" : "";
+    syncRoofTypeOptions();
+    setPressureSectionText(isOpen);
+
     if (!type || type.supported) {
       gate.hidden = true;
-      note.innerHTML = "";
+      note.innerHTML = isOpen
+        ? `<div class="note">Open building (free roof): Section&nbsp;3 uses Appendix&nbsp;B net pressure coefficients C<sub>p,n</sub> for the roof
+            (Tables B.4&ndash;B.6) &mdash; there are no walls and no internal pressure. The elevation/plan diagrams show the roof only.</div>`
+        : "";
       calcBtn.disabled = false;
       calcBtn.title = "";
       return;
@@ -195,6 +250,7 @@ function populateRoofTypes() {
     sel.appendChild(opt);
   });
   sel.value = "gable";
+  syncRoofTypeOptions();
 }
 
 function populateAri() {
@@ -478,7 +534,10 @@ function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta
   let roofTableRef = "";
   let roofUnavailableNote = "";
 
-  if (pitch < 10) {
+  if (roofType === "troughed") {
+    roofUnavailableNote = `A troughed roof has no enclosed-building tables in Section 5 &mdash; it is only covered as a free roof
+      (Appendix B, Table B.6). Switch the building type to "Open building (free roof)".`;
+  } else if (pitch < 10) {
     const roofZones = cpeRoofLowPitch(hd);
     roofRows = roofZones.flatMap((z) => netRows(`Roof, ${z.label}`, Array.isArray(z.values) ? z.values : []).map((r) => ({ ...r, note: z.note })));
     roofTableRef = "Table 5.3(A)";
@@ -521,6 +580,47 @@ function rowsToHtml(rows) {
     .join("");
 }
 
+// Open building (free roof): Appendix B, Clause B.3. There are no walls and no internal pressure --
+// the tabulated net coefficients Cp,n already combine the upper and lower roof surfaces (positive
+// = net DOWNWARD). Cp,w applies to the windward half of the roof, Cp,l to the leeward half, and the
+// Standard requires ALL combinations of the listed alternatives to be checked. Ka and the local
+// pressure factor K (Table B.1) are taken as 1.0 here, as everywhere else in this tool.
+function computeOpenAxisPressures({ Vdes, Cdyn, d, h, pitch, roofType, axisIndex, blockedPct }) {
+  const hd = h / d;
+  // axis 0 = wind from the low edge (theta=0), axis 2 = from the high edge (theta=180) -- only
+  // distinguishable for a monoslope; pitched/troughed roofs are symmetric. axes 1/3 = parallel to ridge.
+  const theta = axisIndex % 2 === 1 ? 90 : axisIndex === 2 ? 180 : 0;
+  const res = freeRoofCases({ roofType, pitch, theta, hd, blockedPct });
+  const p = (cn) => (windPressure(Vdes, cn, Cdyn) / 1000);
+
+  if (res.unavailable) {
+    return { db: NaN, hd, bOverD: NaN, cpeLw: null, cpiLabel: "n/a (open building)", dbOutOfRange: false,
+      wallRows: [], roofRows: [], roofTableRef: "Appendix B", roofUnavailableNote: res.unavailable, isOpen: true, openEntries: [], openNotes: [], openMode: "halves", openCombos: [] };
+  }
+
+  const roofRows = [];
+  res.entries.forEach((e) => {
+    e.values.forEach((cn) => {
+      roofRows.push({ surfaceLabel: `Roof, ${e.label}`, cpeRaw: cn, cpe: cn, kp: 1, cpi: 0, pExt: p(cn), pInt: 0, pNet: p(cn), entryLabel: e.label });
+    });
+  });
+
+  // "All combinations" of Cp,w with Cp,l (halves mode only) -- each combination is one load case.
+  const combos = [];
+  if (res.mode === "halves") {
+    const w = res.entries[0].values;
+    const l = res.entries[1].values;
+    w.forEach((cw) => l.forEach((cl) => combos.push({ cw, cl, pw: p(cw), pl: p(cl) })));
+  }
+
+  return {
+    db: NaN, hd, bOverD: NaN, cpeLw: null, cpiLabel: "n/a (open building)", dbOutOfRange: false,
+    wallRows: [], roofRows, roofTableRef: `Appendix B (${roofType === "monoslope" ? "Table B.4" : roofType === "troughed" ? "Table B.6" : "Table B.5"})`,
+    roofUnavailableNote: "", isOpen: true, openEntries: res.entries, openNotes: res.notes, openMode: res.mode, openCombos: combos,
+    openTheta: theta,
+  };
+}
+
 function renderPressureResults() {
   const type = BUILDING_TYPES.find((t) => t.id === $("buildingType").value);
   if (type && !type.supported) return; // defence-in-depth -- the button is disabled for this case
@@ -532,6 +632,7 @@ function renderPressureResults() {
   const pitch = parseFloat($("roofPitch").value) || 0;
   const roofType = $("roofType").value || "gable";
   const cpiCase = CPI_CASES.find((c) => c.id === $("cpiCase").value);
+  const blockedPct = Math.max(0, Math.min(100, parseFloat($("blockedPct")?.value) || 0));
 
   // Prefer the 4 axis-specific Vdes,theta values from Section 2; fall back to the single manually
   // entered value (for all 4 axes) if Section 2 hasn't been run yet in this session.
@@ -552,7 +653,10 @@ function renderPressureResults() {
     const ridgeTheta = i % 2 === 0 ? 0 : 90;
     const b = ridgeTheta === 0 ? bldB : bldD;
     const d = ridgeTheta === 0 ? bldD : bldB;
-    const calc = computeAxisPressures({ Vdes: axis.Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase });
+    const calc =
+      type && type.id === "open"
+        ? computeOpenAxisPressures({ Vdes: axis.Vdes, Cdyn, d, h, pitch, roofType, axisIndex: i, blockedPct })
+        : computeAxisPressures({ Vdes: axis.Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta, cpiCase });
     return { label: axis.label, bearing: axis.theta, Vdes: axis.Vdes, ridgeTheta, b, d, h, pitch, roofType, ...calc };
   });
   lastAxisResults = axisResults; // cached for the plan/elevation pressure diagrams
@@ -582,8 +686,60 @@ function renderPressureResults() {
     ${governingRoof ? `<div class="pill">Governing roof: <strong>${fmt(governingRoof.pNet, 2)} kPa</strong> (${governingRoof.surfaceLabel}, ${governingRoof.axisLabel})</div>` : ""}
   `;
 
+  // Open building: roof-only, net coefficients Cp,n (no Cp,e / Cp,i split, no wall table).
+  function openAxisBody(a) {
+    if (!a.roofRows.length) {
+      return a.roofUnavailableNote ? `<div class="warning">${a.roofUnavailableNote}</div>` : "";
+    }
+    const rows = a.roofRows
+      .map(
+        (r) => `<tr><td>${r.surfaceLabel}</td><td class="num">${cpeSpan(r.cpe)}</td><td class="num">${fmt(r.pNet, 2)}</td></tr>`
+      )
+      .join("");
+    const combos = a.openCombos.length
+      ? `<h4>Load case combinations <span class="ref">(Cl B.3.1 &mdash; all combinations of C<sub>p,w</sub> and C<sub>p,l</sub> to be checked)</span></h4>
+          <table>
+            <thead><tr><th>Case</th><th class="num">C<sub>p,w</sub></th><th class="num">C<sub>p,l</sub></th>
+              <th class="num">p<sub>w</sub> (kPa)</th><th class="num">p<sub>l</sub> (kPa)</th></tr></thead>
+            <tbody>${a.openCombos
+              .map(
+                (c, k) => `<tr><td>${k + 1}</td><td class="num">${cpeSpan(c.cw)}</td><td class="num">${cpeSpan(c.cl)}</td>
+                  <td class="num">${fmt(c.pw, 2)}</td><td class="num">${fmt(c.pl, 2)}</td></tr>`
+              )
+              .join("")}</tbody>
+          </table>`
+      : "";
+    const notes = a.openNotes.map((n) => `<div class="note">${n}</div>`).join("");
+    return `
+      <h4>Roof net pressures <span class="ref">(${a.roofTableRef})</span></h4>
+      <table>
+        <thead><tr><th>Zone</th><th class="num">C<sub>p,n</sub></th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${combos}
+      ${notes}`;
+  }
+
   const axisBlocks = axisResults
     .map((a, i) => {
+      if (a.isOpen) {
+        const dirText =
+          a.openTheta === 90
+            ? "wind parallel to ridge"
+            : roofType === "monoslope"
+            ? a.openTheta === 180
+              ? "wind down the slope (from the high edge)"
+              : "wind up the slope (from the low edge)"
+            : "wind normal to ridge";
+        return `
+        <details class="subpanel" ${i === 0 ? "open" : ""}>
+          <summary>${a.label} &mdash; bearing ${fmt(a.bearing, 0)}°, V<sub>des,θ</sub> = ${fmt(a.Vdes, 1)} m/s
+            <span class="ref">(${dirText})</span></summary>
+          <div class="pill">h/d = ${fmt(a.hd, 2)}</div>
+          <div class="pill">Blocked under roof: ${fmt(blockedPct, 0)}%</div>
+          ${openAxisBody(a)}
+        </details>`;
+      }
       let dbNote = "";
       if (a.dbOutOfRange) {
         dbNote = `<div class="warning">d/b = ${fmt(a.db, 2)} is outside the tabulated range (${a.leewardTableMinDb}&ndash;${a.leewardTableMaxDb})
@@ -622,7 +778,15 @@ function renderPressureResults() {
     .join("");
 
   let roofTypeNote = "";
-  if (roofType === "hip") {
+  const isOpenType = type && type.id === "open";
+  if (isOpenType) {
+    roofTypeNote = `<div class="note"><strong>Open building (free roof), Appendix B:</strong> C<sub>p,n</sub> is the <em>net</em> pressure
+      coefficient across the roof (upper minus lower surface) and is positive for net <em>downward</em> load. C<sub>p,w</sub> applies to the
+      windward half and C<sub>p,l</sub> to the leeward half; every combination of the listed values is a load case. Roof types are limited
+      to monoslope, pitched (gable) and troughed. h is taken as the average roof height and d as the along-wind roof depth.
+      Blockage under the roof: ≤&nbsp;50% = &ldquo;empty under&rdquo;, ≥&nbsp;75% = &ldquo;blocked under&rdquo;, linear in between.
+      K<sub>a</sub> and the local pressure factor K (Table B.1) are taken as 1.0.</div>`;
+  } else if (roofType === "hip") {
     roofTypeNote = `<div class="note"><strong>Hip roof:</strong> the leeward wall C<sub>p,e</sub> uses the θ&nbsp;=&nbsp;0° values at
       every wind direction (Table 5.2(B), Note 3), and the hip-end (R) slopes use the same value as the downwind slope
       (Table 5.3(C), Clause 5.4.1(c)).</div>`;
@@ -640,8 +804,9 @@ function renderPressureResults() {
     ${axisBlocks}
     <p class="note">p = 0.5 &times; ρ<sub>air</sub>(1.2 kg/m&sup3;) &times; V<sub>des,θ</sub>&sup2; &times; C<sub>shp</sub> &times; C<sub>dyn</sub>
       (Equation 2.4(1)). Positive = pressure toward the surface, negative = suction. K<sub>a</sub>=K<sub>c</sub>=K<sub>l</sub>=K<sub>p</sub>=1.0 assumed.
-      d/b and h/d are both relative to the wind direction for that axis (b = across-wind, d = along-wind), so they differ between the
-      front/back and side axes.</p>
+      ${isOpenType
+        ? "For an open building C<sub>shp</sub> = C<sub>p,n</sub>; h/d is relative to the along-wind roof depth for that axis."
+        : "d/b and h/d are both relative to the wind direction for that axis (b = across-wind, d = along-wind), so they differ between the front/back and side axes."}</p>
   `;
 
   $("pressureDiagrams").hidden = false;
@@ -697,6 +862,7 @@ const PLAN_STRIP = 14;
 // Plan view, wind always drawn from the top regardless of true bearing -- this is a schematic
 // "wind hits this face" diagram for the selected axis, not tied to the compass's azimuth.
 function buildPlanViewSvg(axis) {
+  if (axis.isOpen) return buildOpenPlanViewSvg(axis);
   const b = Math.max(axis.b, 0.1);
   const d = Math.max(axis.d, 0.1);
   const h = Math.max(axis.h, 0.1);
@@ -758,6 +924,7 @@ const ELEV_MAX_H = 130;
 // gable/monoslope roof doesn't slope in this cut, so it's drawn flat (with a note) -- a hip
 // roof's true along-length shape near its ends isn't attempted here, see the isometric view.
 function buildElevationSvg(axis) {
+  if (axis.isOpen) return buildOpenElevationSvg(axis);
   const d = Math.max(axis.d, 0.1);
   const H = Math.max(axis.h, 0.1);
   const pitchRad = (Math.max(0, Math.min(60, axis.pitch)) * Math.PI) / 180;
@@ -863,6 +1030,130 @@ function buildElevationSvg(axis) {
   return out;
 }
 
+// --- Open building (free roof) variants of the plan/elevation diagrams -------------------------
+// There are no walls: the roof is split into the Cp,w / Cp,l halves (or the three distance zones
+// of Table B.4(B)) and each band shows its governing (largest-magnitude) net pressure.
+
+function openGovRow(axis, idx) {
+  const label = axis.openEntries[idx] && axis.openEntries[idx].label;
+  const matches = axis.roofRows.filter((r) => r.entryLabel === label);
+  if (!matches.length) return null;
+  return matches.reduce((worst, r) => (Math.abs(r.pNet) > Math.abs(worst.pNet) ? r : worst), matches[0]);
+}
+
+// Bands along the along-wind depth, in metres from the windward edge.
+function openBands(axis) {
+  const d = Math.max(axis.d, 0.1);
+  const bands = [];
+  if (axis.openMode === "zones") {
+    const h = Math.max(axis.h, 0.1);
+    const edges = [0, Math.min(h, d), Math.min(2 * h, d), d];
+    for (let i = 0; i < 3; i++) {
+      if (edges[i + 1] - edges[i] > 0.01) bands.push({ x1: edges[i], x2: edges[i + 1], row: openGovRow(axis, i) });
+    }
+  } else {
+    bands.push({ x1: 0, x2: d / 2, row: openGovRow(axis, 0) });
+    bands.push({ x1: d / 2, x2: d, row: openGovRow(axis, 1) });
+  }
+  return bands.filter((bnd) => bnd.row);
+}
+
+function buildOpenPlanViewSvg(axis) {
+  const b = Math.max(axis.b, 0.1);
+  const d = Math.max(axis.d, 0.1);
+  const scale = Math.min(PLAN_MAX_W / b, PLAN_MAX_H / d);
+  const sb = b * scale;
+  const sd = d * scale;
+  const rectX = PLAN_CX - sb / 2;
+  const rectY = PLAN_TOP;
+  const maxAbs = Math.max(...axis.roofRows.map((r) => Math.abs(r.pNet)), 0.01);
+
+  let out = "";
+  openBands(axis).forEach((bnd) => {
+    const y1 = rectY + bnd.x1 * scale;
+    const y2 = rectY + bnd.x2 * scale;
+    out += `<rect x="${rectX.toFixed(1)}" y="${y1.toFixed(1)}" width="${sb.toFixed(1)}" height="${(y2 - y1).toFixed(1)}" class="${pressureFillClass(bnd.row.pNet)}" fill-opacity="${pressureOpacity(bnd.row.pNet, maxAbs)}" />`;
+    if (y2 - y1 > 12) {
+      out += `<text x="${PLAN_CX}" y="${((y1 + y2) / 2 + 3).toFixed(1)}" text-anchor="middle" class="press-label">${fmt(bnd.row.pNet, 2)}</text>`;
+    }
+  });
+  out += `<rect x="${rectX.toFixed(1)}" y="${rectY.toFixed(1)}" width="${sb.toFixed(1)}" height="${sd.toFixed(1)}" class="press-outline" />`;
+  // support posts at the four corners
+  [[rectX, rectY], [rectX + sb, rectY], [rectX, rectY + sd], [rectX + sb, rectY + sd]].forEach(([px, py]) => {
+    out += `<rect x="${(px - 3).toFixed(1)}" y="${(py - 3).toFixed(1)}" width="6" height="6" class="press-outline" />`;
+  });
+  out += windArrowSvg(PLAN_CX, 16, PLAN_CX, rectY - 8);
+  out += `<text x="${PLAN_CX}" y="12" text-anchor="middle" class="press-arrow-label">Wind</text>`;
+  return out;
+}
+
+function buildOpenElevationSvg(axis) {
+  const d = Math.max(axis.d, 0.1);
+  const H = Math.max(axis.h, 0.1);
+  const pitchRad = (Math.max(0, Math.min(60, axis.pitch)) * Math.PI) / 180;
+  const flat = axis.openTheta === 90 || axis.openMode === "zones" && axis.pitch === 0;
+  const rise = flat ? 0 : axis.roofType === "monoslope" ? d * Math.tan(pitchRad) : (d / 2) * Math.tan(pitchRad);
+
+  let pts;
+  if (flat || rise === 0) {
+    pts = [{ x: 0, y: H }, { x: d, y: H }];
+  } else if (axis.roofType === "monoslope") {
+    pts = axis.openTheta === 180 ? [{ x: 0, y: H + rise }, { x: d, y: H }] : [{ x: 0, y: H }, { x: d, y: H + rise }];
+  } else if (axis.roofType === "troughed") {
+    pts = [{ x: 0, y: H }, { x: d / 2, y: Math.max(H - rise, H * 0.1) }, { x: d, y: H }];
+  } else {
+    pts = [{ x: 0, y: H }, { x: d / 2, y: H + rise }, { x: d, y: H }];
+  }
+  const yAt = (x) => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (x <= pts[i + 1].x + 1e-9) return pts[i].y + ((x - pts[i].x) / (pts[i + 1].x - pts[i].x)) * (pts[i + 1].y - pts[i].y);
+    }
+    return pts[pts.length - 1].y;
+  };
+
+  const maxHeight = Math.max(...pts.map((p) => p.y));
+  const scale = Math.min(ELEV_MAX_W / d, ELEV_MAX_H / maxHeight);
+  const baseX = ELEV_CX - (d * scale) / 2;
+  const sx = (xm) => baseX + xm * scale;
+  const sy = (ym) => ELEV_BASE_Y - ym * scale;
+  const maxAbs = Math.max(...axis.roofRows.map((r) => Math.abs(r.pNet)), 0.01);
+
+  let out = `<line x1="${(baseX - 20).toFixed(1)}" y1="${ELEV_BASE_Y}" x2="${(baseX + d * scale + 20).toFixed(1)}" y2="${ELEV_BASE_Y}" class="press-ground" />`;
+  const arrowY = ELEV_BASE_Y - (maxHeight * scale) / 2;
+  out += windArrowSvg(baseX - 45, arrowY, baseX - 12, arrowY);
+  out += `<text x="${(baseX - 28).toFixed(1)}" y="${(arrowY - 8).toFixed(1)}" text-anchor="middle" class="press-arrow-label">Wind</text>`;
+
+  // posts + roof outline
+  out += `<line x1="${sx(0).toFixed(1)}" y1="${ELEV_BASE_Y}" x2="${sx(0).toFixed(1)}" y2="${sy(yAt(0)).toFixed(1)}" class="press-outline" />`;
+  out += `<line x1="${sx(d).toFixed(1)}" y1="${ELEV_BASE_Y}" x2="${sx(d).toFixed(1)}" y2="${sy(yAt(d)).toFixed(1)}" class="press-outline" />`;
+  out += `<polyline points="${pts.map((p) => `${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(" ")}" class="press-outline" />`;
+
+  // pressure bands: split each at the profile's vertices so a band never cuts across a ridge/valley
+  const verts = pts.map((p) => p.x).filter((x) => x > 0 && x < d);
+  openBands(axis).forEach((bnd) => {
+    const cuts = [bnd.x1, ...verts.filter((v) => v > bnd.x1 + 1e-9 && v < bnd.x2 - 1e-9), bnd.x2];
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const x1 = sx(cuts[i]);
+      const y1 = sy(yAt(cuts[i]));
+      const x2 = sx(cuts[i + 1]);
+      const y2 = sy(yAt(cuts[i + 1]));
+      out += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" class="press-roof-seg ${pressureFillClass(bnd.row.pNet)}" stroke-opacity="${pressureOpacity(bnd.row.pNet, maxAbs)}" />`;
+    }
+    const midX = sx((bnd.x1 + bnd.x2) / 2);
+    const midY = sy(yAt((bnd.x1 + bnd.x2) / 2)) - 7;
+    if ((bnd.x2 - bnd.x1) * scale > 24) {
+      out += `<text x="${midX.toFixed(1)}" y="${midY.toFixed(1)}" text-anchor="middle" class="press-label press-label-sm">${fmt(bnd.row.pNet, 2)}</text>`;
+    }
+  });
+
+  if (!axis.roofRows.length) {
+    out += `<text x="${ELEV_CX}" y="${(sy(H) - 12).toFixed(1)}" text-anchor="middle" class="press-note-text">roof C&#8320;,n not available for this roof type</text>`;
+  } else if (axis.openTheta === 90) {
+    out += `<text x="${ELEV_CX}" y="${(sy(H) - 24).toFixed(1)}" text-anchor="middle" class="press-note-text">roof shown flat -- parallel to ridge</text>`;
+  }
+  return out;
+}
+
 function populatePressureDiagramAxis() {
   const sel = $("pressureDiagramAxis");
   const labels = ["θ=0° (front)", "θ=90°", "θ=180°", "θ=270°"];
@@ -884,11 +1175,16 @@ function renderPressureDiagrams() {
   $("planViewSvg").innerHTML = buildPlanViewSvg(axis);
   $("elevationViewSvg").innerHTML = buildElevationSvg(axis);
 
+  const caseText = axis.isOpen
+    ? `Open building: the roof is shown in its C<sub>p,w</sub> / C<sub>p,l</sub> bands (windward edge at the top of the plan, left of the
+      elevation). Where a band has two C<sub>p,n</sub> values (a downward and an uplift case), the more extreme one is shown here; both
+      are still listed in the tables above.`
+    : `Where a surface has more than one load case (Clause 5.4.1 turbulence, or multiple C<sub>p,i</sub> values), the more extreme one
+      is shown here; both are still listed in the tables above.`;
   $("pressureDiagramCaption").innerHTML = `Plan and elevation for <strong>${axis.label}</strong>
     (bearing ${fmt(axis.bearing, 0)}&deg;, V<sub>des,&theta;</sub> = ${fmt(axis.Vdes, 1)} m/s). Colour intensity scales with
-    |p<sub>net</sub>| within this view only (not a scale shared between directions). Where a surface has more than one load
-    case (Clause 5.4.1 turbulence, or multiple C<sub>p,i</sub> values), the more extreme one is shown here; both are still
-    listed in the tables above. Schematic only, not to scale, and not linked to the compass's bearing.`;
+    |p<sub>net</sub>| within this view only (not a scale shared between directions). ${caseText}
+    Schematic only, not to scale, and not linked to the compass's bearing.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1020,8 +1316,10 @@ function renderCompass() {
   // a monoslope has no ridge at all.
   const ridgeIds = ["roofRidge", "roofHip1", "roofHip2", "roofHip3", "roofHip4"];
   ridgeIds.forEach((id) => setHidden($(id), true));
-  if (type.glyph === "rect" && roofType !== "monoslope") {
-    if (roofType === "gable") {
+  // An open building's footprint is dashed (roof on posts, no walls); it uses the same ridge line.
+  rectEl.style.strokeDasharray = type.glyph === "open" ? "6 4" : "";
+  if ((type.glyph === "rect" || type.glyph === "open") && roofType !== "monoslope") {
+    if (roofType === "gable" || roofType === "troughed") {
       setLine($("roofRidge"), { x: COMPASS_CX - halfB, y: COMPASS_CY }, { x: COMPASS_CX + halfB, y: COMPASS_CY });
       setHidden($("roofRidge"), false);
     } else if (roofType === "hip") {
@@ -1152,6 +1450,11 @@ function buildIsoBox(hw, hl, H, pitchRad, roofType) {
     polys.push({ pts: [D, C, C2, D2], cls: "iso-wall" }); // eave wall
     polys.push({ pts: [B, C, C2, R2, B2], cls: "iso-gable" }); // gable end wall
     polys.push({ pts: [D2, C2, R2, R1], cls: "iso-roof" }); // near roof slope
+  } else if (roofType === "troughed") {
+    // Not reachable from the UI (troughed is only offered for open buildings); drawn flat if it is.
+    polys.push({ pts: [D, C, C2, D2], cls: "iso-wall" });
+    polys.push({ pts: [B, C, C2, B2], cls: "iso-wall-alt" });
+    polys.push({ pts: [A2, B2, C2, D2], cls: "iso-roof" });
   } else if (roofType === "hip") {
     // Ridge inset by the shorter half-dimension (equal-pitch hip), matching the compass.
     const rise = Math.min(hw, hl) * Math.tan(pitchRad);
@@ -1238,6 +1541,44 @@ function buildIsoLatticeTower(hw, hl, H) {
   };
 }
 
+// An open building (free roof): four corner posts carrying a roof plane, with no walls. The
+// roof is drawn far slope first, then near slope, so the near slope correctly overpaints it.
+function buildIsoOpenRoof(hw, hl, H, pitchRad, roofType) {
+  const A = { x: -hw, y: -hl, z: 0 };
+  const B = { x: hw, y: -hl, z: 0 };
+  const C = { x: hw, y: hl, z: 0 };
+  const D = { x: -hw, y: hl, z: 0 };
+  const L = (p1, p2) => ({ p1, p2, cls: "iso-lattice" });
+  const polys = [];
+  let postTops; // [A, B, C, D] roof heights at each post
+
+  if (roofType === "monoslope") {
+    const rise = 2 * hl * Math.tan(pitchRad);
+    const A2 = { x: -hw, y: -hl, z: H };
+    const B2 = { x: hw, y: -hl, z: H };
+    const C2 = { x: hw, y: hl, z: H + rise };
+    const D2 = { x: -hw, y: hl, z: H + rise };
+    polys.push({ pts: [A2, B2, C2, D2], cls: "iso-roof" });
+    postTops = [A2, B2, C2, D2];
+  } else {
+    const trough = roofType === "troughed";
+    const rise = hl * Math.tan(pitchRad);
+    const mid = trough ? Math.max(H - rise, H * 0.1) : H + rise;
+    const A2 = { x: -hw, y: -hl, z: H };
+    const B2 = { x: hw, y: -hl, z: H };
+    const C2 = { x: hw, y: hl, z: H };
+    const D2 = { x: -hw, y: hl, z: H };
+    const R1 = { x: -hw, y: 0, z: mid };
+    const R2 = { x: hw, y: 0, z: mid };
+    polys.push({ pts: [A2, B2, R2, R1], cls: "iso-roof-alt" }); // far slope
+    polys.push({ pts: [D2, C2, R2, R1], cls: "iso-roof" }); // near slope
+    postTops = [A2, B2, C2, D2];
+  }
+
+  const lines = [L(A, postTops[0]), L(B, postTops[1]), L(C, postTops[2]), L(D, postTops[3])];
+  return { polys, lines };
+}
+
 // Projects every point in `shape` at once, fitting the whole drawing (whatever its
 // aspect ratio -- a flat wide shed or a tall thin tower) into the target box.
 function renderIsoShapeToSvg(shape) {
@@ -1299,6 +1640,8 @@ function renderIsometric() {
     shape = buildIsoBox(hw, thickness, H, 0, "flat");
   } else if (type.glyph === "lattice") {
     shape = buildIsoLatticeTower(hw, hl, H);
+  } else if (type.glyph === "open") {
+    shape = buildIsoOpenRoof(hw, hl, H, pitchRad, roofType);
   } else {
     shape = buildIsoBox(hw, hl, H, pitchRad, roofType);
   }

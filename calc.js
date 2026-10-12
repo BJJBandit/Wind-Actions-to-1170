@@ -279,3 +279,140 @@ function cpeRoofDownwindPitched(hd, pitch, bOverD) {
   const rowResults = T.rows.map((row) => interpTable(clampedPitch, T.pitch, row));
   return round2(interpTable(hd, T.hd, rowResults));
 }
+
+// -- Appendix B, Clause B.3 -- net pressure coefficients for free roofs (open buildings) ----------
+
+// A table cell is [a] or [a, b]. Split into its negative and positive load-case components.
+function splitCell(cell) {
+  const out = { neg: null, pos: null };
+  cell.forEach((v) => {
+    if (v < 0 && (out.neg === null || v < out.neg)) out.neg = v;
+    else if (v >= 0 && (out.pos === null || v > out.pos)) out.pos = v;
+  });
+  return out;
+}
+
+function cellToValues(c) {
+  const vals = [];
+  if (c.neg !== null) vals.push(round2(c.neg));
+  if (c.pos !== null) vals.push(round2(c.pos));
+  return vals;
+}
+
+// Clause B.3.1: interpolate only between values of the same sign; where no value of that sign
+// exists on one side, 0.0 is assumed for interpolation purposes.
+function lerpCells(c0, c1, t) {
+  if (t <= 0) return c0;
+  if (t >= 1) return c1;
+  const mix = (a, b) => {
+    if (a === null && b === null) return null;
+    return (a === null ? 0 : a) + t * ((b === null ? 0 : b) - (a === null ? 0 : a));
+  };
+  return { neg: mix(c0.neg, c1.neg), pos: mix(c0.pos, c1.pos) };
+}
+
+function interpCellsOnAxis(xs, cells, x) {
+  if (x <= xs[0]) return cells[0];
+  if (x >= xs[xs.length - 1]) return cells[cells.length - 1];
+  for (let i = 0; i < xs.length - 1; i++) {
+    if (x >= xs[i] && x <= xs[i + 1]) return lerpCells(cells[i], cells[i + 1], (x - xs[i]) / (xs[i + 1] - xs[i]));
+  }
+  return cells[cells.length - 1];
+}
+
+// blockedPct: % of the cross-section exposed to the wind blocked under the roof. <=50% is "empty
+// under", >=75% is "blocked under"; linear in between.
+function blockageFraction(blockedPct) {
+  return Math.max(0, Math.min(1, (blockedPct - 50) / 25));
+}
+
+function freeRoofCell(pitches, emptyCells, blockedCells, pitch, blockedPct) {
+  const e = interpCellsOnAxis(pitches, emptyCells.map(splitCell), pitch);
+  const b = interpCellsOnAxis(pitches, blockedCells.map(splitCell), pitch);
+  return cellToValues(lerpCells(e, b, blockageFraction(blockedPct)));
+}
+
+// Returns the free-roof load cases for one wind direction.
+//   roofType: "monoslope" | "gable" (= pitched) | "troughed"   (hip has no free-roof table)
+//   theta: 0 (wind up the slope / normal to ridge), 180 (down the slope), 90 (parallel to ridge)
+//   hd: roof height / along-wind depth
+// -> { mode: "halves"|"zones", entries:[{label, values:[...]}], notes:[...], unavailable?:string }
+function freeRoofCases({ roofType, pitch, theta, hd, blockedPct }) {
+  const notes = [];
+  if (roofType === "hip") {
+    return { unavailable: "A hip roof has no free-roof table in Appendix B -- source Cp,n from the Standard (or treat it as a pitched roof) directly." };
+  }
+  if (hd < 0.05) {
+    notes.push(`h/d = ${round2(hd)} is below the 0.05 lower limit of Tables B.4(B) -- values for h/d = 0.05 shown; confirm against the Standard.`);
+  } else if (hd > 1) {
+    notes.push(`h/d = ${round2(hd)} is above the 1.0 upper limit of Tables B.4(A)/B.5/B.6 -- values for h/d = 1.0 shown; confirm against the Standard.`);
+  }
+
+  const M = FREE_ROOF_MONOSLOPE_A;
+  const monoCell = (key, th, p) => freeRoofCell(M.pitch, M[th][key.e], M[th][key.b], p, blockedPct);
+  const wKey = { e: "wEmpty", b: "wBlocked" };
+  const lKey = { e: "lEmpty", b: "lBlocked" };
+
+  // Low h/d (0.05 <= h/d < 0.25): Table B.4(B), zones by distance from the windward edge.
+  if (hd < 0.25) {
+    const w0 = monoCell(wKey, "theta0", 0);
+    const l0 = monoCell(lKey, "theta0", 0);
+    const far = lerpCells(
+      splitCell(FREE_ROOF_MONOSLOPE_B_FAR.empty),
+      splitCell(FREE_ROOF_MONOSLOPE_B_FAR.blocked),
+      blockageFraction(blockedPct)
+    );
+    notes.push("Table B.4(B) (0.05 <= h/d < 0.25) applies for any roof pitch and wind direction -- Cp,n is given by distance x from the windward edge.");
+    return {
+      mode: "zones",
+      entries: [
+        { label: "0 to 1h from windward edge (Cp,w, Table B.4(A) at 0°)", values: w0 },
+        { label: "1h to 2h from windward edge (Cp,l, Table B.4(A) at 0°)", values: l0 },
+        { label: "> 2h from windward edge", values: cellToValues(far) },
+      ],
+      notes,
+    };
+  }
+
+  // Wind parallel to the ridge: pitch is effectively zero -> Table B.4(A) at pitch 0 (Clause B.3.1).
+  if (theta === 90) {
+    notes.push("Wind parallel to the ridge: roof pitch is effectively zero, so Table B.4(A) at 0° is used (Clause B.3.1).");
+    return {
+      mode: "halves",
+      entries: [
+        { label: "Windward half (Cp,w)", values: monoCell(wKey, "theta0", 0) },
+        { label: "Leeward half (Cp,l)", values: monoCell(lKey, "theta0", 0) },
+      ],
+      notes,
+    };
+  }
+
+  if (roofType === "monoslope") {
+    if (pitch > M.pitch[M.pitch.length - 1]) notes.push(`Pitch ${pitch}° exceeds the 30° tabulated limit of Table B.4(A) -- values for 30° shown.`);
+    const th = theta === 180 ? "theta180" : "theta0";
+    return {
+      mode: "halves",
+      entries: [
+        { label: "Windward half (Cp,w)", values: monoCell(wKey, th, pitch) },
+        { label: "Leeward half (Cp,l)", values: monoCell(lKey, th, pitch) },
+      ],
+      notes,
+    };
+  }
+
+  const T = roofType === "troughed" ? FREE_ROOF_TROUGHED : FREE_ROOF_PITCHED;
+  const tName = roofType === "troughed" ? "B.6" : "B.5";
+  const lo = T.pitch[0];
+  const hi = T.pitch[T.pitch.length - 1];
+  if (pitch < lo || pitch > hi) {
+    notes.push(`Pitch ${pitch}° is outside the ${lo}°–${hi}° range of Table ${tName} -- the nearest tabulated pitch is shown; confirm against the Standard.`);
+  }
+  return {
+    mode: "halves",
+    entries: [
+      { label: "Windward half (Cp,w)", values: freeRoofCell(T.pitch, T.wEmpty, T.wBlocked, pitch, blockedPct) },
+      { label: "Leeward half (Cp,l)", values: freeRoofCell(T.pitch, T.lEmpty, T.lBlocked, pitch, blockedPct) },
+    ],
+    notes,
+  };
+}

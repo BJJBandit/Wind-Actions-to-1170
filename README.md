@@ -104,11 +104,12 @@ entries.
 ## Building type dropdown
 
 AS/NZS 1170.2:2021 covers five broad categories of structure, in Section 5 and Appendices A–D. This
-tool only calculates the first:
+tool calculates the first and a free-roof (open building) case from Appendix B:
 
 | Building type | Where it's covered | Calculated here? |
 |---|---|---|
-| Enclosed rectangular building | Section 5 | Yes (walls fully, roof pitch < 10° only) |
+| Enclosed rectangular building | Section 5 | Yes (walls; roofs up to 45° pitch, see below) |
+| Open building (free roof) | Appendix B, Cl B.3 | Yes (roof net pressures, Tables B.4–B.6) |
 | Circular bins, silos and tanks | Appendix A | No |
 | Freestanding walls, hoardings, canopies and roofs | Appendix B | No |
 | Exposed structural members, frames and lattice towers | Appendix C | No |
@@ -117,6 +118,32 @@ tool only calculates the first:
 Selecting one of the unsupported types disables the Section 3 calculation (with a notice pointing at
 the right Appendix) rather than silently producing nothing or, worse, a wrong number — Section 2's site
 and design wind speed calculation is unaffected either way, since it's independent of building type.
+
+### Open building (free roof)
+
+Selecting **Open building (free roof)** swaps Section 3 to the Appendix B free-roof method (Clause B.3):
+
+- **Net pressure coefficients, Cp,n** — a roof on posts has no walls and no internal pressure, so the
+  tabulated coefficients already combine the upper and lower roof surfaces (positive = net *downward*).
+  The internal-pressure dropdown is disabled for this type.
+- **Roof shapes** — monoslope (Table B.4(A)/(B)), pitched/gable (Table B.5) and troughed/inverted gable
+  (Table B.6; offered only for open buildings). A **hip** roof has no free-roof table and is flagged as
+  unavailable rather than approximated.
+- **Cp,w / Cp,l** — the windward half and leeward half each have one or two values; every combination is
+  listed as a load case (Cl B.3.1). For 0.05 ≤ h/d < 0.25, Table B.4(B) applies instead, giving
+  coefficients by distance from the windward edge (0–1h, 1h–2h, > 2h), for any pitch and direction.
+- **Blockage under the roof** — a new % input. ≤ 50 % is read as "empty under" and ≥ 75 % as "blocked
+  under"; between those the two columns are interpolated linearly, only between values of the same sign
+  (0.0 is assumed where one side has no value of that sign, as the Standard directs).
+- **Directions** — wind parallel to the ridge uses the 0° pitch value of Table B.4(A) (the pitch is
+  effectively zero in that direction). For a monoslope, "front" is wind from the low edge (up the slope)
+  and the "back" axis is wind from the high edge (down the slope).
+- **Assumptions** — h is the average roof height and d the along-wind roof depth for each axis; Ka and
+  the local pressure factor K (Table B.1) are taken as 1.0. Values outside the tabulated pitch or h/d
+  range are clamped to the nearest tabulated one with a visible note — check against the Standard.
+
+The plan and elevation diagrams show the roof bands (no wall strips) and the isometric view draws the
+roof on four posts.
 
 ## Building importance level dropdown
 
@@ -158,8 +185,9 @@ To avoid presenting numbers with false confidence, the following are **not** aut
 - **Section 6 (dynamic response)** — `Cdyn` is a manual input (default 1.0). Wind-sensitive structures
   (tall/slender buildings, poles, masts, natural frequency < 1 Hz, etc.) require the full Section 6
   procedure, which is not implemented.
-- **Appendices A–E** — circular bins/silos/tanks, freestanding walls/hoardings/canopies, exposed
-  members/lattice towers, flags/circular shapes, and accelerations/rotational velocities.
+- **Appendices A–E** (other than the Appendix B free roof above) — circular bins/silos/tanks,
+  freestanding walls/hoardings, exposed members/lattice towers, flags/circular shapes, and
+  accelerations/rotational velocities.
 - **Ka, Kc, Kl, Kp** (area reduction, action combination, local pressure, porous cladding factors) are
   all taken as 1.0. These matter for cladding/fixing design — apply them separately per Clauses
   5.4.2–5.4.5.
