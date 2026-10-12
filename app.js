@@ -1744,6 +1744,158 @@ function wireCompass() {
 }
 
 // ---------------------------------------------------------------------------
+// Print / save-as-PDF report
+//
+// The page is printed through the browser's own print dialog ("Save as PDF"), styled by the
+// @media print rules in style.css: input controls are hidden, a table of the inputs used is added
+// at the top, every collapsed results panel is opened, and plan/elevation diagrams are added for
+// all four directions (on screen only the selected direction is drawn).
+// ---------------------------------------------------------------------------
+
+function selectedText(id) {
+  const el = $(id);
+  const opt = el && el.selectedOptions && el.selectedOptions[0];
+  return opt ? opt.textContent.trim() : "";
+}
+
+function buildPrintSummary(errorMessage) {
+  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType").value);
+  const isOpen = !!type && type.id === "open";
+  const num = (id, dp = 1) => fmt(parseFloat($(id).value) || 0, dp);
+  const table = (pairs) =>
+    `<table><tbody>${pairs.map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join("")}</tbody></table>`;
+
+  const mtMode = $("mtMode").value;
+  let topography = "Flat / no local topographic feature (M<sub>t</sub> = 1.0)";
+  if (mtMode === "manual") {
+    topography = `Manual: M<sub>t</sub> = ${num("mtManual", 2)}`;
+  } else if (mtMode === "hill") {
+    topography = `${selectedText("mhType")}: H = ${num("mhH")} m, L<sub>u</sub> = ${num("mhLu")} m, x = ${num("mhX")} m${
+      $("mhA0").checked ? ", Region A0" : ""
+    }`;
+  }
+  const sRaw = $("shieldingS").value;
+  const ari = readAriYears();
+
+  // The dropdown marks medium-confidence region matches with a trailing "*"; spell that out in the report.
+  let location = selectedText("siteLocation") || "not selected";
+  if (/\*$/.test(location)) {
+    location = `${location.replace(/\s*\*$/, "")} (medium-confidence region match &mdash; verify against Figure 3.1)`;
+  }
+  const siteRows = [
+    ["Site location", location],
+    ["Region (Table 3.1)", selectedText("region")],
+    ["Importance level", selectedText("importanceLevel") || "not selected"],
+    ["Average recurrence interval, R", `${ari} years`],
+    ["Terrain category", selectedText("terrainCategory")],
+    ["Shielding parameter, s", sRaw === "" ? "none (M<sub>s</sub> = 1.0)" : sRaw],
+    ["Site topography", topography],
+  ];
+  const buildingRows = [
+    ["Building type", type ? `${type.label} (${type.clause})` : ""],
+    ["Width, W = b (across wind)", `${num("bldB")} m`],
+    ["Length, L = d (along wind)", `${num("bldD")} m`],
+    ["Average roof height, h", `${num("bldH")} m`],
+    ["Roof type / pitch", `${selectedText("roofType")}, ${num("roofPitch", 0)}&deg;`],
+    ["Bearing of θ=0° axis from true North", `${selectedText("azimuth")}`],
+    ["Dynamic response factor, C<sub>dyn</sub>", num("pCdyn", 2)],
+    isOpen
+      ? ["Blockage under roof", `${num("blockedPct", 0)}%`]
+      : ["Internal pressure case (Table 5.1(A))", selectedText("cpiCase")],
+  ];
+
+  return `
+    <div class="print-summary">
+      <h2>Wind action calculation &mdash; AS/NZS 1170.2:2021</h2>
+      <p class="print-meta">Generated ${new Date().toLocaleString()}. Preliminary / educational tool &mdash; verify against the Standard and have
+        results checked by a suitably qualified engineer.</p>
+      ${errorMessage ? `<div class="warning">${errorMessage}</div>` : ""}
+      <div class="print-cols">
+        <div><h3>Site &amp; design criteria</h3>${table(siteRows)}</div>
+        <div><h3>Building</h3>${table(buildingRows)}</div>
+      </div>
+    </div>`;
+}
+
+function buildPrintDiagrams() {
+  if (!lastAxisResults) return "";
+  const blocks = lastAxisResults
+    .map(
+      (axis) => `
+      <div class="print-axis">
+        <h4>${axis.label} &mdash; bearing ${fmt(axis.bearing, 0)}°, V<sub>des,θ</sub> = ${fmt(axis.Vdes, 1)} m/s</h4>
+        <div class="print-axis-svgs">
+          <svg viewBox="0 0 320 300" role="img" aria-label="Plan view for ${axis.label}">${buildPlanViewSvg(axis)}</svg>
+          <svg viewBox="0 0 320 240" role="img" aria-label="Elevation view for ${axis.label}">${buildElevationSvg(axis)}</svg>
+        </div>
+      </div>`
+    )
+    .join("");
+  return `
+    <div class="results">
+      <h3>Plan &amp; elevation pressure diagrams &mdash; all directions</h3>
+      ${blocks}
+      <p class="note">Plan: wind from the top. Elevation: wind from the left. Colour intensity scales with |p<sub>net</sub>| within each
+        view only; where a surface has more than one load case the more extreme one is shown (all are listed in the tables). Schematic only,
+        not to scale.</p>
+    </div>`;
+}
+
+let lastPrintPrepared = 0;
+let titleBeforePrint = null;
+
+function preparePrintReport() {
+  // Print can trigger this twice (button click, then the browser's own beforeprint event).
+  if (Date.now() - lastPrintPrepared < 1500) return;
+  lastPrintPrepared = Date.now();
+
+  const type = BUILDING_TYPES.find((t) => t.id === $("buildingType").value);
+  const supported = !type || type.supported;
+  let errorMessage = "";
+
+  // Recalculate from the current inputs so the report can never show stale numbers.
+  try {
+    runSpeedCalc();
+    if (supported) {
+      renderPressureResults();
+    } else {
+      $("pressureResults").hidden = true;
+      $("pressureDiagrams").hidden = true;
+      lastAxisResults = null;
+    }
+  } catch (err) {
+    errorMessage = `The results could not be recalculated for this report (${err && err.message ? err.message : err}). Check the inputs.`;
+  }
+
+  $("printSummary").innerHTML = buildPrintSummary(errorMessage);
+  $("printAllDiagrams").innerHTML = supported && !errorMessage ? buildPrintDiagrams() : "";
+
+  // Collapsed <details> content isn't printed, so open every results panel.
+  document.querySelectorAll("#speedResults details, #pressureResults details").forEach((d) => {
+    d.open = true;
+  });
+
+  // Browsers use the page title as the suggested PDF file name.
+  if (titleBeforePrint === null) titleBeforePrint = document.title;
+  const place = selectedText("siteLocation") || selectedText("region");
+  document.title = `Wind actions AS1170.2 - ${place || "site"} - ${type ? type.label : "building"}`.replace(/[\\/:*?"<>|]/g, "");
+}
+
+function wirePrintReport() {
+  $("printReport").addEventListener("click", () => {
+    preparePrintReport();
+    window.print();
+  });
+  window.addEventListener("beforeprint", preparePrintReport);
+  window.addEventListener("afterprint", () => {
+    if (titleBeforePrint !== null) {
+      document.title = titleBeforePrint;
+      titleBeforePrint = null;
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -1764,4 +1916,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("calcSpeeds").addEventListener("click", runSpeedCalc);
   $("calcPressure").addEventListener("click", renderPressureResults);
+  wirePrintReport();
 });

@@ -23,6 +23,9 @@
 </div>
 
 <main>
+  <!-- Print/PDF only: report header + a table of the inputs used (filled in just before printing). -->
+  <section id="printSummary" class="print-only"></section>
+
   <!-- ============================= SECTION: BUILDING ============================= -->
   <section class="card">
     <h2>1. Building <span class="ref">(plan size, height, roof, orientation)</span></h2>
@@ -307,6 +310,8 @@
     <p class="hint">Plan size (W × L), roof height and roof type/pitch are set in the Building section above.</p>
 
     <button id="calcPressure" class="primary">Calculate wind pressures</button>
+    <button id="printReport" class="secondary" type="button"
+      title="Recalculates with the current inputs, then opens the print dialog -- choose &quot;Save as PDF&quot;">Print / save results as PDF</button>
 
     <div id="pressureResults" class="results" hidden></div>
 
@@ -330,6 +335,9 @@
       </div>
       <p class="note" id="pressureDiagramCaption"></p>
     </div>
+
+    <!-- Print/PDF only: plan + elevation for all four axes (filled in just before printing). -->
+    <div id="printAllDiagrams" class="print-only"></div>
   </section>
 </main>
 

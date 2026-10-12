@@ -119,6 +119,20 @@ Selecting one of the unsupported types disables the Section 3 calculation (with 
 the right Appendix) rather than silently producing nothing or, worse, a wrong number — Section 2's site
 and design wind speed calculation is unaffected either way, since it's independent of building type.
 
+### Print / save results as PDF
+
+The **Print / save results as PDF** button (next to *Calculate wind pressures*) recalculates from the
+current inputs and opens the browser's print dialog — choose *Save as PDF* as the destination (Ctrl/Cmd+P
+produces the same report). Nothing is uploaded; it's the browser's own print.
+
+The report is laid out for A4 and contains: the inputs used (site, region, importance level, ARI, terrain,
+shielding, topography, building size/roof/orientation, C<sub>dyn</sub>, internal pressure case or blockage),
+the compass and isometric views, the wind-speed results and rose, every axis's wall/roof pressure tables
+(all panels expanded), and plan + elevation pressure diagrams for **all four directions** (on screen only
+the selected direction is drawn). Input controls, buttons and help text are left out. For building types
+this tool doesn't calculate, the report covers the wind speeds only. The suggested file name is built from
+the site location and building type.
+
 ### Internal pressure: "All cases of Table 5.1(A)"
 
 The **Internal pressure case** dropdown in Section 3 can be set to an envelope of every Table 5.1(A)

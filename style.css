@@ -568,3 +568,221 @@ tr.gov-row td {
   font-weight: 700;
 }
 
+
+/* ---------------------------------------------------------------------------
+   Print / save-as-PDF report
+   --------------------------------------------------------------------------- */
+
+button.secondary {
+  background: transparent;
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0.5rem 0 0 0.5rem;
+}
+
+button.secondary:hover {
+  background: var(--bg);
+}
+
+.print-only {
+  display: none;
+}
+
+.print-summary h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1.1rem;
+}
+
+.print-summary .print-meta {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.print-summary .print-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.5rem;
+}
+
+.print-summary table {
+  margin-bottom: 0.5rem;
+}
+
+.print-summary th {
+  text-transform: none;
+  font-size: 0.8rem;
+  width: 48%;
+}
+
+.print-axis {
+  break-inside: avoid;
+  margin: 0.6rem 0;
+}
+
+.print-axis h4 {
+  margin: 0 0 0.2rem;
+  font-size: 0.85rem;
+}
+
+.print-axis .print-axis-svgs {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+}
+
+.print-axis svg {
+  width: 48%;
+  height: auto;
+  max-height: 250px;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  :root {
+    --bg: #ffffff;
+    --card-bg: #ffffff;
+    --text: #000000;
+    --text-muted: #444444;
+    --border: #bbbbbb;
+    --accent: #1d5c8a;
+    --accent-dark: #123f5f;
+    --warn-bg: #ffffff;
+    --warn-border: #999999;
+    --pos: #b6493a;
+    --neg: #1d6fa5;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 10.5pt;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Inputs are summarised in the report table instead, so hide the controls and their help text. */
+  button,
+  .card > .hint,
+  .compass-wrap .hint,
+  .iso-wrap .hint,
+  .windrose-wrap .hint,
+  .field .hint,
+  .card .grid,
+  .card > details.subpanel,
+  .diagram-axis-picker,
+  #pressureDiagrams,
+  #pressureIntro,
+  #ari-custom-wrap,
+  #blockageWrap {
+    display: none !important;
+  }
+
+  .page-header {
+    padding: 0 0 0.4rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.3rem;
+  }
+
+  main {
+    padding: 0;
+    max-width: none;
+  }
+
+  .disclaimer {
+    margin: 0.4rem 0 0.8rem;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .card {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0.9rem;
+  }
+
+  .card h2 {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.15rem;
+  }
+
+  .results {
+    border-top: none;
+    margin-top: 0.4rem;
+    padding-top: 0;
+  }
+
+  .results table,
+  .results .pill,
+  .results h4 {
+    break-inside: avoid;
+  }
+
+  .results h3,
+  .results h4 {
+    break-after: avoid;
+  }
+
+  .results details.subpanel {
+    border-color: var(--border);
+    padding: 0.4rem 0.6rem;
+  }
+
+  .results details.subpanel summary {
+    list-style: none;
+  }
+
+  .results details.subpanel summary::-webkit-details-marker {
+    display: none;
+  }
+
+  th, td {
+    padding: 0.2rem 0.4rem;
+  }
+
+  table {
+    font-size: 9pt;
+  }
+
+  svg {
+    max-width: 100%;
+  }
+
+  #compassSvg,
+  #isoSvg {
+    height: auto;
+    max-height: 260px;
+  }
+
+  .diagram-row {
+    flex-wrap: nowrap;
+    break-inside: avoid;
+  }
+
+  .compass-wrap,
+  .iso-wrap {
+    margin: 0.3rem 0;
+  }
+
+  .windrose-wrap {
+    break-inside: avoid;
+  }
+
+  footer {
+    font-size: 8pt;
+  }
+}
