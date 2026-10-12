@@ -274,12 +274,17 @@ function populateAri() {
 
 function populateCpiCases() {
   const sel = $("cpiCase");
+  const allOpt = document.createElement("option");
+  allOpt.value = "all";
+  allOpt.textContent = "All cases of Table 5.1(A) (envelope — every case checked)";
+  sel.appendChild(allOpt);
   CPI_CASES.forEach((c) => {
     const opt = document.createElement("option");
     opt.value = c.id;
     opt.textContent = c.label;
     sel.appendChild(opt);
   });
+  sel.value = CPI_CASES[0].id; // keep the original default; "All cases" is an explicit opt-in
 }
 
 function wireTopographyControls() {
@@ -504,7 +509,16 @@ function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta
 
   let cpiValues;
   let cpiLabel;
-  if (cpiCase.cpi === "cpe_ww") {
+  if (cpiCase.id === "all") {
+    // Envelope of every Table 5.1(A) case: case (a) gives Cp,i = Cp,e(windward wall), the rest are
+    // fixed values. Deduplicated and sorted so each surface is checked against each distinct Cp,i.
+    const set = new Map();
+    CPI_CASES.forEach((c) => {
+      (c.cpi === "cpe_ww" ? [cpeWw] : c.cpi).forEach((v) => set.set(round2(v), round2(v)));
+    });
+    cpiValues = Array.from(set.values()).sort((x, y) => x - y);
+    cpiLabel = `all Table 5.1(A) cases: ${cpiValues.map((v) => v.toFixed(2)).join(", ")}`;
+  } else if (cpiCase.cpi === "cpe_ww") {
     cpiValues = [cpeWw];
     cpiLabel = "= Cp,e (windward wall)";
   } else {
@@ -565,18 +579,31 @@ function computeAxisPressures({ Vdes, Cdyn, b, d, h, pitch, roofType, ridgeTheta
   return { db, hd, bOverD, cpeLw, cpiLabel, dbOutOfRange, leewardTableMinDb, leewardTableMaxDb, wallRows, roofRows, roofTableRef, roofUnavailableNote };
 }
 
-function rowsToHtml(rows) {
+// `markGoverning`: bold the largest-|pNet| row of each surface (used when many Cp,i cases are listed).
+function rowsToHtml(rows, markGoverning = false) {
+  const govBySurface = new Map();
+  if (markGoverning) {
+    rows.forEach((r) => {
+      const cur = govBySurface.get(r.surfaceLabel);
+      if (!cur || Math.abs(r.pNet) > Math.abs(cur.pNet)) govBySurface.set(r.surfaceLabel, r);
+    });
+  }
+  let lastKey = null;
   return rows
-    .map(
-      (r) => `<tr>
+    .map((r) => {
+      const noteKey = `${r.surfaceLabel}|${r.note || ""}`;
+      const showNote = r.note && noteKey !== lastKey;
+      lastKey = noteKey;
+      const gov = markGoverning && govBySurface.get(r.surfaceLabel) === r;
+      return `<tr${gov ? ' class="gov-row"' : ""}>
           <td>${r.surfaceLabel}</td>
           <td class="num">${cpeSpan(r.cpe)}</td>
           <td class="num">${cpeSpan(r.cpi)}</td>
           <td class="num">${fmt(r.pExt, 2)}</td>
           <td class="num">${fmt(r.pInt, 2)}</td>
           <td class="num">${fmt(r.pNet, 2)}</td>
-        </tr>${r.note ? `<tr><td colspan="6" class="note">${r.note}</td></tr>` : ""}`
-    )
+        </tr>${showNote ? `<tr><td colspan="6" class="note">${r.note}</td></tr>` : ""}`;
+    })
     .join("");
 }
 
@@ -631,7 +658,7 @@ function renderPressureResults() {
   const h = parseFloat($("bldH").value) || 1;
   const pitch = parseFloat($("roofPitch").value) || 0;
   const roofType = $("roofType").value || "gable";
-  const cpiCase = CPI_CASES.find((c) => c.id === $("cpiCase").value);
+  const cpiCase = $("cpiCase").value === "all" ? { id: "all" } : CPI_CASES.find((c) => c.id === $("cpiCase").value);
   const blockedPct = Math.max(0, Math.min(100, parseFloat($("blockedPct")?.value) || 0));
 
   // Prefer the 4 axis-specific Vdes,theta values from Section 2; fall back to the single manually
@@ -685,6 +712,8 @@ function renderPressureResults() {
     ${governingWall ? `<div class="pill">Governing wall: <strong>${fmt(governingWall.pNet, 2)} kPa</strong> (${governingWall.surfaceLabel}, ${governingWall.axisLabel})</div>` : ""}
     ${governingRoof ? `<div class="pill">Governing roof: <strong>${fmt(governingRoof.pNet, 2)} kPa</strong> (${governingRoof.surfaceLabel}, ${governingRoof.axisLabel})</div>` : ""}
   `;
+
+  const allCpi = !(type && type.id === "open") && cpiCase && cpiCase.id === "all";
 
   // Open building: roof-only, net coefficients Cp,n (no Cp,e / Cp,i split, no wall table).
   function openAxisBody(a) {
@@ -752,7 +781,7 @@ function renderPressureResults() {
           <table>
             <thead><tr><th>Zone</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
               <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
-            <tbody>${rowsToHtml(a.roofRows)}</tbody>
+            <tbody>${rowsToHtml(a.roofRows, allCpi)}</tbody>
           </table>`;
       } else if (a.roofUnavailableNote) {
         roofSection = `<div class="warning">${a.roofUnavailableNote}</div>`;
@@ -770,8 +799,10 @@ function renderPressureResults() {
           <table>
             <thead><tr><th>Surface</th><th class="num">C<sub>p,e</sub></th><th class="num">C<sub>p,i</sub></th>
               <th class="num">p<sub>ext</sub> (kPa)</th><th class="num">p<sub>int</sub> (kPa)</th><th class="num">p<sub>net</sub> (kPa)</th></tr></thead>
-            <tbody>${rowsToHtml(a.wallRows)}</tbody>
+            <tbody>${rowsToHtml(a.wallRows, allCpi)}</tbody>
           </table>
+          ${allCpi ? `<div class="note">All Table 5.1(A) C<sub>p,i</sub> cases are listed; the <strong>bold row</strong> is the largest-magnitude
+            p<sub>net</sub> for each surface.</div>` : ""}
           ${roofSection}
         </details>`;
     })

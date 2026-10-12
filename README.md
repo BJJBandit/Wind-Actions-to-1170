@@ -119,6 +119,15 @@ Selecting one of the unsupported types disables the Section 3 calculation (with 
 the right Appendix) rather than silently producing nothing or, worse, a wrong number — Section 2's site
 and design wind speed calculation is unaffected either way, since it's independent of building type.
 
+### Internal pressure: "All cases of Table 5.1(A)"
+
+The **Internal pressure case** dropdown in Section 3 can be set to an envelope of every Table 5.1(A)
+case. Each surface is then checked against every distinct C<sub>p,i</sub> from all cases (case (a)'s
+C<sub>p,i</sub> = C<sub>p,e</sub> of the windward wall, plus the fixed values of the others), and the
+largest-magnitude net pressure for each surface is shown in bold. This avoids the single-case default
+reporting zero net pressure on the windward wall. The default is still case (a); the envelope is an
+opt-in.
+
 ### Open building (free roof)
 
 Selecting **Open building (free roof)** swaps Section 3 to the Appendix B free-roof method (Clause B.3):

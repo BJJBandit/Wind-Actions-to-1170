@@ -563,3 +563,8 @@ footer {
   font-size: 10px;
   font-style: italic;
 }
+
+tr.gov-row td {
+  font-weight: 700;
+}
+
